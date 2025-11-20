@@ -1,199 +1,291 @@
-/* ==================================================
-   1. 【调色盘重写】强制覆盖主题默认颜色变量
-   这是最彻底的方法，直接把白底黑字改成黑底亮字
-   ================================================== */
-:root {
-    --global-bg: #050505 !important;          /* 整个网页背景：纯黑 */
-    --card-bg: rgba(10, 10, 10, 0.85) !important; /* 卡片背景：85%透明度的深黑 */
-    --font-color: #eeeeee !important;         /* 主要文字：灰白 */
-    --text-highlight-color: #fcee0a !important; /* 选中文字颜色：律师黄 */
-    --btn-hover-color: #ff00de !important;    /* 按钮悬停颜色：霓虹粉 */
-    --link-hover-color: #00f3ff !important;   /* 链接悬停颜色：青色 */
-}
+/* ==========================================================================
+   iOS 26 "Deep Liquid" 终极融合版 - 针对 qinghuidaqzp.github.io 优化
+   ========================================================================== */
 
-/* ==================================================
-   2. 【背景特效】高对比度 CRT 电视扫描线
-   之前看不清是因为太暗了，这次调亮一点线条
-   ================================================== */
-body {
-    background-color: #000 !important;
-    /* 使用重复线性渐变，画出更明显的条纹 */
-    background-image: repeating-linear-gradient(
-        0deg,
-        transparent 0px,
-        transparent 2px,
-        rgba(255, 255, 255, 0.05) 3px, /* 淡淡的白线，制造屏幕发光感 */
-        rgba(255, 255, 255, 0.05) 4px
-    ) !important;
-    background-attachment: fixed !important;
-}
-
-/* ==================================================
-   3. 【大标题】Better Call Me 赛博版
-   ================================================== */
-#site-title {
-    font-size: 9rem !important;
-    font-family: 'Impact', 'Arial Black', sans-serif !important;
-    color: #fcee0a !important;
-    
-    /* 3D 立体阴影 */
-    text-shadow: 6px 6px 0px #ff0000, -4px -4px 0px #00f3ff;
-    
-    letter-spacing: 15px;
-    line-height: 1.0;
-    margin-top: 20px;
-    
-    /* 动画 */
-    animation: glitch-anim 3s infinite alternate;
-}
-
-/* 定义抖动动画 */
-@keyframes glitch-anim {
-    0% { transform: skew(0deg); }
-    20% { transform: skew(-5deg); }
-    40% { transform: skew(5deg); }
-    60% { transform: skew(-2deg); }
-    80% { transform: skew(2deg); }
-    100% { transform: skew(0deg); }
-}
-
-/* ==================================================
-   4. 【细节修复】去除多余的白色边框和背景
-   ================================================== */
-
-/* 清除顶部导航栏背景 */
-#page-header {
+/* --- 1. 全局重置：暴力清除主题自带背景 --- */
+body, #web_bg, #content-inner, #page-header, #footer {
     background: transparent !important;
+    background-image: none !important;
+    background-color: transparent !important;
 }
 
-/* 强制让所有卡片变黑，并加上赛博朋克边框 */
-#recent-posts > .recent-post-item,
-#aside-content .card-widget,
-div#post,
-div#page,
-div#archive {
-    background-color: var(--card-bg) !important; /* 使用我们定义的黑变量 */
-    border: 1px solid #333 !important; /* 深灰边框 */
-    box-shadow: 4px 4px 0px #000 !important; /* 硬朗黑色阴影 */
-    border-radius: 0 !important; /* 直角 */
-}
-
-/* 让文章标题变亮 */
-.article-title {
-    color: #00f3ff !important; /* 青色标题 */
-}
-.article-title:hover {
-    color: #ff00de !important; /* 鼠标放上去变粉 */
-}
-
-/* 手机适配 */
-@media screen and (max-width: 768px) {
-    #site-title { font-size: 4rem !important; letter-spacing: 5px; }
-}
-
-
-/* --- 1. 网页底层：液态光斑动画 --- */
+/* --- 2. 核心底层：深邃流体动态背景 --- */
 body {
-    /* 确保背景图固定，不会随页面滚动 */
-    background-attachment: fixed; 
-    background-color: #f0f2f5; /* 你原来的浅灰色或白色底色 */
-    position: relative;
-    overflow-x: hidden; /* 防止光斑溢出导致横向滚动条 */
+    /* 深色油画质感底色 */
+    background-color: #050511 !important;
+    min-height: 100vh;
+    color: #e6e6e6 !important; /* 全局文字强制变白 */
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif !important;
 }
 
-/* 创建两个流动的光斑 */
+/* 创建两个流动的极光色块 - 营造液态感 */
 body::before, body::after {
     content: '';
     position: fixed;
-    width: 80vw;   /* 光斑很大，占据屏幕大部分 */
-    height: 80vw;
+    z-index: -2; /* 放在最底层 */
     border-radius: 50%;
-    filter: blur(80px); /* 强力高斯模糊，制造光晕感 */
-    z-index: -1;   /* 放在最底层 */
-    opacity: 0.6;  /* 调整透明度，不要太刺眼 */
-    animation: liquidMove 20s infinite alternate ease-in-out;
+    filter: blur(90px); /* 极致模糊，像晕开的水彩 */
+    opacity: 0.5;
+    animation: floating 20s infinite ease-in-out alternate;
 }
 
-/* 第一个光斑：蓝紫色系 (iOS 经典风格) */
+/* 色块1：冷调蓝紫 */
 body::before {
-    top: -20%;
-    left: -20%;
-    background: linear-gradient(to right, #a8c0ff, #3f2b96);
+    width: 70vw; height: 70vw;
+    top: -10%; left: -10%;
+    background: radial-gradient(circle, #2c3e50, #4ca1af);
+    background: linear-gradient(135deg, #3b2c85, #243b55);
 }
 
-/* 第二个光斑：暖色系 (形成冷暖对比) */
+/* 色块2：暖调洋红（对比色） */
 body::after {
-    bottom: -20%;
-    right: -20%;
-    background: linear-gradient(to right, #ff9966, #ff5e62);
-    animation-delay: -10s; /* 错开动画时间 */
+    width: 60vw; height: 60vw;
+    bottom: -10%; right: -10%;
+    background: linear-gradient(135deg, #742a55, #8e44ad);
+    animation-delay: -10s;
 }
 
-/* 定义缓慢漂浮的动画 */
-@keyframes liquidMove {
+@keyframes floating {
     0% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(30px, 50px) scale(1.1); }
-    100% { transform: translate(-20px, 20px) scale(0.9); }
+    100% { transform: translate(40px, -30px) scale(1.1); }
 }
 
-/* --- 2. 通用玻璃拟态类 --- */
-/* 你需要把这个效果应用到你博客具体的容器上 */
-.glass-effect {
-    /* 背景：半透明白色 */
-    background: rgba(255, 255, 255, 0.25) !important; 
+
+/* --- 3. 玻璃容器：智能匹配 Hexo 常见区块 --- */
+/* 这里涵盖了文章卡片、侧边栏、顶部导航、底部 */
+.recent-post-item,          /* Butterfly 主页文章 */
+.post-content,              /* 文章详情页 */
+.card-widget,               /* 侧边栏小部件 */
+#aside-content .card-widget,
+#page-header.nav-fixed #nav,/* 顶部导航栏 */
+.layout > div,              /* 通用布局 */
+article,
+.post-block,                /* Next 主题 */
+.navbar {
+    /* [核心] 厚重磨砂玻璃材质 */
+    background: rgba(20, 20, 30, 0.55) !important; 
     
-    /* 核心：背景模糊 (毛玻璃特效) */
-    -webkit-backdrop-filter: blur(16px) !important;
-    backdrop-filter: blur(16px) !important;
+    /* [核心] iOS 饱和度模糊 (Saturated Blur) */
+    -webkit-backdrop-filter: blur(40px) saturate(160%) !important;
+    backdrop-filter: blur(40px) saturate(160%) !important;
     
-    /* 边框：极细的亮色边框，模拟玻璃厚度 */
-    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    /* [核心] 光学边框：去掉了黑色线条，只保留光照 */
+    border: none !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.2) !important; /* 底部加深，增加厚度感 */
     
-    /* 阴影：柔和的投影让卡片浮起来 */
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1) !important;
-    
-    /* 细节：iOS风格圆角 */
+    /* 阴影：让物体“沉”在流体背景中 */
+    box-shadow: 
+        0 20px 40px -10px rgba(0, 0, 0, 0.5),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.03) !important;
+        
     border-radius: 24px !important;
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), background 0.3s !important;
 }
 
-/* 针对深色模式 (Dark Mode) 的适配 - 如果你有的话 */
-@media (prefers-color-scheme: dark) {
-    .glass-effect {
-        background: rgba(0, 0, 0, 0.3) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        color: #fff; /* 确保文字变白 */
+/* --- 4. "大清洗"：去除卡片内部所有不和谐的背景色 --- */
+/* 这是解决“黑色块没有融合”的关键 */
+.recent-post-item *, 
+.card-widget *, 
+article *,
+.post-content * {
+    background-color: transparent !important; /* 强制透明，露出玻璃 */
+    border-color: rgba(255, 255, 255, 0.1) !important; /* 线条变淡 */
+}
+
+/* --- 5. 细节修复：文字与高亮 --- */
+/* 标题颜色 */
+h1, h2, h3, h4, h5, h6, .article-title, .blog-title {
+    color: #ffffff !important;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.3); /* 文字增加立体感 */
+}
+
+/* 正文颜色 */
+p, span, li, .article-content {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* 链接颜色 */
+a {
+    color: #8cbaff !important; /* 亮蓝色链接 */
+    text-decoration: none !important;
+}
+
+/* 鼠标悬停效果：玻璃微微发光 */
+.recent-post-item:hover, .card-widget:hover {
+    transform: translateY(-6px) scale(1.01) !important;
+    background: rgba(50, 50, 70, 0.6) !important; /* 变亮 */
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.2) !important;
+}
+
+/* 代码块特别处理：给一个深色底，否则看不清代码 */
+figure.highlight, code, pre {
+    background: rgba(0, 0, 0, 0.4) !important;
+    border-radius: 12px !important;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.5) !important;
+}
+
+/* 去除多余的顶部图片遮挡 (针对 Butterfly 等主题) */
+#page-header {
+    background: transparent !important;
+}
+#page-header::before {
+    display: none !important;
+}
+
+#page-header #site-info { margin-top: 100px; } 
+#page-header.full_page { background: transparent !important; height: auto !important; }
+
+/* --- 0. 引入美式复古/街头字体 (Google Fonts) --- */
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Permanent+Marker&display=swap');
+
+/* --- 1. 改造标题容器 --- */
+/* 针对 Butterfly/Next 等常见主题的标题选择器 */
+#site-name, .brand, .site-title {
+    /* 字体：Anton 是经典的压扁加粗无衬线体，非常像 Saul 的广告字体 */
+    font-family: 'Anton', sans-serif !important; 
+    
+    /* 尺寸：放大，撑起气场 */
+    font-size: 2.5rem !important; 
+    line-height: 1.1 !important;
+    
+    /* 颜色：经典的 Saul 律师广告配色 (亮黄 + 鲜红) */
+    color: #FFE81F !important; /* 亮黄色 */
+    
+    /* 核心灵魂：硬边 3D 阴影 (复古印刷感) */
+    text-shadow: 
+        3px 3px 0px #D9381E,  /* 第一层：红色硬阴影 */
+        5px 5px 0px #1a1a1a !important; /* 第二层：黑色轮廓，增加街头感 */
+    
+    /* 形态：美式街头特有的“不羁”倾斜 */
+    transform: skew(-6deg) rotate(-2deg) !important;
+    display: inline-block;
+    
+    /* 其它细节 */
+    letter-spacing: 1px;
+    text-transform: uppercase; /* 强制大写 */
+    margin-top: 5px; /* 稍微修正位置 */
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* 弹性动画 */
+}
+
+/* --- 2. 鼠标悬停特效：故障/膨胀感 --- */
+#site-name:hover, .brand:hover, .site-title:hover {
+    /* 悬停时摆正一点，并放大 */
+    transform: scale(1.1) skew(-6deg) rotate(0deg) !important;
+    
+    /* 阴影拉长，产生“冲出屏幕”的感觉 */
+    text-shadow: 
+        5px 5px 0px #D9381E,
+        10px 10px 0px #1a1a1a !important;
+        
+    /* 颜色微调 */
+    color: #FFF !important; /* 悬停变白，更闪亮 */
+}
+
+/* --- 3. (可选) 如果你想让它更有“涂鸦/嬉皮士”感 --- */
+/* 把 font-family 改成 'Permanent Marker' 就会变成记号笔手写风格 */
+/* 只需把下面这段注释解开即可： */
+/* 
+#site-name, .brand {
+    font-family: 'Permanent Marker', cursive !important;
+    transform: rotate(-3deg) !important;
+    text-shadow: 2px 2px 0px #000, 4px 4px 0px #D9381E !important;
+}
+*/
+
+/* --- 4. 适配手机端 (防止标题太大撑破屏幕) --- */
+@media screen and (max-width: 768px) {
+    #site-name, .brand {
+        font-size: 1.8rem !important; /* 手机上稍微小一点 */
+        margin-left: 10px;
     }
 }
 
-/* --- 3. 暴力匹配常见博客元素 --- */
+/* --- BETTER CALL SAUL 开屏海报样式 --- */
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Permanent+Marker&display=swap');
 
-/* 尝试匹配：文章卡片、侧边栏、导航栏 */
-article, 
-.post, 
-.card, 
-.entry, 
-.sidebar, 
-.widget, 
-.navbar, 
-header {
-    /* 继承上面的玻璃效果属性 */
-    background: rgba(255, 255, 255, 0.25); 
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
-    border-radius: 20px;
-    
-    /* 既然背景透明了，就要把原来的纯白背景去掉 */
-    background-color: rgba(255, 255, 255, 0.25) !important; 
-    
-    /* 增加一点内边距，防止文字贴边 */
-    transition: all 0.3s ease; /* 鼠标悬停时平滑过渡 */
+/* ============================================
+   Better Call Me - 融合式长页面版
+   ============================================ */
+
+/* 1. 隐藏 Butterfly 原有的顶部图，防止重复 */
+#page-header, #web_bg {
+    background: transparent !important;
+    display: block; /* 保持占位，但内容我们自己接管 */
+}
+#page-header.full_page, #page-header.not-top-img {
+    height: 0 !important; /* 把原来的头图高度压缩为0 */
+    padding: 0 !important;
+    margin-bottom: 0 !important;
+}
+/* 隐藏原来的导航栏背景，让它悬浮在黄色海报上 */
+#nav {
+    background: transparent !important;
+    box-shadow: none !important;
+    z-index: 9999999; /* 保证菜单能点 */
 }
 
-/* 鼠标悬停时，玻璃变得更清晰/上浮 */
-article:hover, .card:hover {
-    transform: translateY(-5px);
-    background: rgba(255, 255, 255, 0.35) !important;
-    box-shadow: 0 15px 40px 0 rgba(31, 38, 135, 0.15) !important;
+/* 2. 将 Saul 海报变成页面的“第一屏” */
+#saul-intro {
+    position: relative; /* 关键：变成文档流的一部分，不再是贴纸 */
+    width: 100%;
+    height: 100vh; /* 强制占满第一屏高度 */
+    background-color: #eeb928;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    overflow: hidden;
+    /* 给底部加一个锯齿/波浪效果，衔接下面的紫色内容 */
+    clip-path: polygon(0 0, 100% 0, 100% 95%, 50% 100%, 0 95%);
+    margin-bottom: -50px; /* 让下面的紫色内容稍微插进来一点，更融合 */
+    z-index: 1;
 }
+
+/* 3. 调整下面的博客内容位置 */
+#content-inner, .layout {
+    position: relative;
+    z-index: 2; /* 保证内容压在海报下方边缘之上 */
+    padding-top: 60px; /* 给一点呼吸空间 */
+}
+
+/* --- 以下是海报内部样式 (保持不变) --- */
+.saul-noise {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15'/%3E%3C/svg%3E");
+    pointer-events: none; mix-blend-mode: overlay;
+}
+
+.saul-title {
+    font-family: 'Anton', sans-serif;
+    font-size: 13vw; /* 字体再大一点，更有冲击力 */
+    line-height: 0.85;
+    color: #c92626;
+    text-align: center;
+    text-transform: uppercase;
+    margin: 0;
+    text-shadow: 4px 4px 0px #000;
+    transform: rotate(-5deg) skew(-5deg);
+    animation: floatTitle 3s infinite ease-in-out;
+}
+
+.saul-subtitle {
+    font-family: 'Permanent Marker', cursive;
+    font-size: 1.8rem;
+    color: #1a1a1a;
+    margin-top: 30px;
+    transform: rotate(-2deg);
+}
+
+.scroll-indicator {
+    position: absolute;
+    bottom: 50px;
+    font-family: 'Anton', sans-serif;
+    color: #1a1a1a;
+    font-size: 1.2rem;
+    animation: bounce 1.5s infinite;
+}
+
+@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(10px); } }
+@keyframes floatTitle { 0%, 100% { transform: rotate(-5deg) skew(-5deg) scale(1); } 50% { transform: rotate(-4deg) skew(-5deg) scale(1.02); } }
