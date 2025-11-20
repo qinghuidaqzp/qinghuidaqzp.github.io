@@ -1,0 +1,92 @@
+/* ==================================================
+   1. 【调色盘重写】强制覆盖主题默认颜色变量
+   这是最彻底的方法，直接把白底黑字改成黑底亮字
+   ================================================== */
+:root {
+    --global-bg: #050505 !important;          /* 整个网页背景：纯黑 */
+    --card-bg: rgba(10, 10, 10, 0.85) !important; /* 卡片背景：85%透明度的深黑 */
+    --font-color: #eeeeee !important;         /* 主要文字：灰白 */
+    --text-highlight-color: #fcee0a !important; /* 选中文字颜色：律师黄 */
+    --btn-hover-color: #ff00de !important;    /* 按钮悬停颜色：霓虹粉 */
+    --link-hover-color: #00f3ff !important;   /* 链接悬停颜色：青色 */
+}
+
+/* ==================================================
+   2. 【背景特效】高对比度 CRT 电视扫描线
+   之前看不清是因为太暗了，这次调亮一点线条
+   ================================================== */
+body {
+    background-color: #000 !important;
+    /* 使用重复线性渐变，画出更明显的条纹 */
+    background-image: repeating-linear-gradient(
+        0deg,
+        transparent 0px,
+        transparent 2px,
+        rgba(255, 255, 255, 0.05) 3px, /* 淡淡的白线，制造屏幕发光感 */
+        rgba(255, 255, 255, 0.05) 4px
+    ) !important;
+    background-attachment: fixed !important;
+}
+
+/* ==================================================
+   3. 【大标题】Better Call Me 赛博版
+   ================================================== */
+#site-title {
+    font-size: 9rem !important;
+    font-family: 'Impact', 'Arial Black', sans-serif !important;
+    color: #fcee0a !important;
+    
+    /* 3D 立体阴影 */
+    text-shadow: 6px 6px 0px #ff0000, -4px -4px 0px #00f3ff;
+    
+    letter-spacing: 15px;
+    line-height: 1.0;
+    margin-top: 20px;
+    
+    /* 动画 */
+    animation: glitch-anim 3s infinite alternate;
+}
+
+/* 定义抖动动画 */
+@keyframes glitch-anim {
+    0% { transform: skew(0deg); }
+    20% { transform: skew(-5deg); }
+    40% { transform: skew(5deg); }
+    60% { transform: skew(-2deg); }
+    80% { transform: skew(2deg); }
+    100% { transform: skew(0deg); }
+}
+
+/* ==================================================
+   4. 【细节修复】去除多余的白色边框和背景
+   ================================================== */
+
+/* 清除顶部导航栏背景 */
+#page-header {
+    background: transparent !important;
+}
+
+/* 强制让所有卡片变黑，并加上赛博朋克边框 */
+#recent-posts > .recent-post-item,
+#aside-content .card-widget,
+div#post,
+div#page,
+div#archive {
+    background-color: var(--card-bg) !important; /* 使用我们定义的黑变量 */
+    border: 1px solid #333 !important; /* 深灰边框 */
+    box-shadow: 4px 4px 0px #000 !important; /* 硬朗黑色阴影 */
+    border-radius: 0 !important; /* 直角 */
+}
+
+/* 让文章标题变亮 */
+.article-title {
+    color: #00f3ff !important; /* 青色标题 */
+}
+.article-title:hover {
+    color: #ff00de !important; /* 鼠标放上去变粉 */
+}
+
+/* 手机适配 */
+@media screen and (max-width: 768px) {
+    #site-title { font-size: 4rem !important; letter-spacing: 5px; }
+}
