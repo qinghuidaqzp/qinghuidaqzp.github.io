@@ -90,3 +90,110 @@ div#archive {
 @media screen and (max-width: 768px) {
     #site-title { font-size: 4rem !important; letter-spacing: 5px; }
 }
+
+
+/* --- 1. 网页底层：液态光斑动画 --- */
+body {
+    /* 确保背景图固定，不会随页面滚动 */
+    background-attachment: fixed; 
+    background-color: #f0f2f5; /* 你原来的浅灰色或白色底色 */
+    position: relative;
+    overflow-x: hidden; /* 防止光斑溢出导致横向滚动条 */
+}
+
+/* 创建两个流动的光斑 */
+body::before, body::after {
+    content: '';
+    position: fixed;
+    width: 80vw;   /* 光斑很大，占据屏幕大部分 */
+    height: 80vw;
+    border-radius: 50%;
+    filter: blur(80px); /* 强力高斯模糊，制造光晕感 */
+    z-index: -1;   /* 放在最底层 */
+    opacity: 0.6;  /* 调整透明度，不要太刺眼 */
+    animation: liquidMove 20s infinite alternate ease-in-out;
+}
+
+/* 第一个光斑：蓝紫色系 (iOS 经典风格) */
+body::before {
+    top: -20%;
+    left: -20%;
+    background: linear-gradient(to right, #a8c0ff, #3f2b96);
+}
+
+/* 第二个光斑：暖色系 (形成冷暖对比) */
+body::after {
+    bottom: -20%;
+    right: -20%;
+    background: linear-gradient(to right, #ff9966, #ff5e62);
+    animation-delay: -10s; /* 错开动画时间 */
+}
+
+/* 定义缓慢漂浮的动画 */
+@keyframes liquidMove {
+    0% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(30px, 50px) scale(1.1); }
+    100% { transform: translate(-20px, 20px) scale(0.9); }
+}
+
+/* --- 2. 通用玻璃拟态类 --- */
+/* 你需要把这个效果应用到你博客具体的容器上 */
+.glass-effect {
+    /* 背景：半透明白色 */
+    background: rgba(255, 255, 255, 0.25) !important; 
+    
+    /* 核心：背景模糊 (毛玻璃特效) */
+    -webkit-backdrop-filter: blur(16px) !important;
+    backdrop-filter: blur(16px) !important;
+    
+    /* 边框：极细的亮色边框，模拟玻璃厚度 */
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    
+    /* 阴影：柔和的投影让卡片浮起来 */
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1) !important;
+    
+    /* 细节：iOS风格圆角 */
+    border-radius: 24px !important;
+}
+
+/* 针对深色模式 (Dark Mode) 的适配 - 如果你有的话 */
+@media (prefers-color-scheme: dark) {
+    .glass-effect {
+        background: rgba(0, 0, 0, 0.3) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        color: #fff; /* 确保文字变白 */
+    }
+}
+
+/* --- 3. 暴力匹配常见博客元素 --- */
+
+/* 尝试匹配：文章卡片、侧边栏、导航栏 */
+article, 
+.post, 
+.card, 
+.entry, 
+.sidebar, 
+.widget, 
+.navbar, 
+header {
+    /* 继承上面的玻璃效果属性 */
+    background: rgba(255, 255, 255, 0.25); 
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+    border-radius: 20px;
+    
+    /* 既然背景透明了，就要把原来的纯白背景去掉 */
+    background-color: rgba(255, 255, 255, 0.25) !important; 
+    
+    /* 增加一点内边距，防止文字贴边 */
+    transition: all 0.3s ease; /* 鼠标悬停时平滑过渡 */
+}
+
+/* 鼠标悬停时，玻璃变得更清晰/上浮 */
+article:hover, .card:hover {
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.35) !important;
+    box-shadow: 0 15px 40px 0 rgba(31, 38, 135, 0.15) !important;
+}
