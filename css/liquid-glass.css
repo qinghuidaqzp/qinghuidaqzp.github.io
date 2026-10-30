@@ -175,6 +175,23 @@ body::after {
         linear-gradient(115deg, transparent 53%, rgba(255, 255, 255, 0.5) 61%, transparent 69%);
 }
 
+/* The flowing backdrop (liquid-glass.js): a WebGL canvas of pastel gradient
+ * and slowly flowing lines. Once it runs, the CSS glows and sheens above step
+ * aside; they remain the backdrop wherever WebGL is unavailable. */
+#web_bg > canvas.lg-flow {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+#web_bg.is-flowing::before,
+#web_bg.is-flowing::after {
+    content: none !important;
+    display: none !important;
+}
+
 /* A slow drift tied to scroll position, run by the compositor. */
 @supports (animation-timeline: scroll()) {
     #web_bg::before {

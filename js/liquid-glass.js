@@ -711,6 +711,131 @@ if (root.dataset.liquidGlass !== 'upstream') {
     document.addEventListener('pjax:complete', () => { watchMirror(); scheduleMirror(450); });
   }
 
+  // --- Flowing backdrop -------------------------------------------------------
+  // The page backdrop (computers and phones): a soft pastel gradient crossed
+  // by thin lines that flow slowly, drawn by a WebGL shader in #web_bg. Glass
+  // only shows its bend where there is detail behind it; the lines give it
+  // that without competing with the text. The phone nav lens runs the same
+  // GLSL on the same clock, so its refracted lines stay in step with the
+  // page's. 30 fps; a single still frame for reduced motion; without WebGL the
+  // CSS backdrop stays.
+  const FLOW_FPS = 30;
+  const FLOW_EPOCH = performance.now();
+  const FLOW_GLSL = `vec3 flowBackdrop(vec2 p, vec2 size, float t, float aa) {
+      float g = clamp((p.x / size.x + p.y / size.y) * 0.5, 0.0, 1.0);
+      vec3 pink = vec3(0.984, 0.914, 0.953), sky = vec3(0.918, 0.949, 1.0), mint = vec3(0.918, 0.980, 0.949);
+      vec3 color = g < 0.5 ? mix(pink, sky, g * 2.0) : mix(sky, mint, g * 2.0 - 1.0);
+      float spacing = size.x < 700.0 ? 22.0 : 26.0;
+      float k0 = floor((p.y + 60.0) / spacing);
+      for (int j = -3; j <= 3; j++) {
+        float k = k0 + float(j);
+        float a1 = p.x * 0.011 + t * 0.35 + k * 0.35;
+        float a2 = p.x * 0.0045 - t * 0.22 + k * 0.2;
+        float y = k * spacing - 60.0 + sin(a1) * 22.0 + sin(a2) * 34.0;
+        float slope = cos(a1) * 0.242 + cos(a2) * 0.153;
+        float d = abs(p.y - y) / sqrt(1.0 + slope * slope);
+        float strong = step(mod(k, 3.0), 0.5);
+        float half_width = mix(0.5, 0.7, strong);
+        float cover = 1.0 - smoothstep(half_width - aa, half_width + aa, d);
+        color = mix(color, vec3(0.275, 0.353, 0.549), cover * mix(0.19, 0.34, strong));
+      }
+      return color;
+    }`;
+  let flow = null;
+
+  function flowTime() {
+    const step = 1000 / FLOW_FPS;
+    return reducedMotion.matches ? 0 : Math.floor((performance.now() - FLOW_EPOCH) / step) * step / 1000;
+  }
+
+  function drawFlow() {
+    const { gl, canvas, at } = flow;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform2f(at.u_size, flow.width, flow.height);
+    gl.uniform1f(at.u_ratio, flow.ratio);
+    gl.uniform1f(at.u_time, flowTime());
+    gl.uniform1f(at.u_aa, 0.6 / flow.ratio);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    // The phone lens refracts the same lines: redraw it on the same frame.
+    if (lens) drawLens();
+  }
+
+  function fitFlow() {
+    const { canvas } = flow;
+    const width = canvas.clientWidth || innerWidth;
+    const height = canvas.clientHeight || innerHeight;
+    const ratio = Math.min(devicePixelRatio || 1, 1.5);
+    if (width === flow.width && height === flow.height && ratio === flow.ratio) return;
+    Object.assign(flow, { width, height, ratio });
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    drawFlow();
+  }
+
+  function startFlow() {
+    const host = document.getElementById('web_bg');
+    if (!host || flow) return;
+    const canvas = document.createElement('canvas');
+    canvas.className = 'lg-flow';
+    canvas.setAttribute('aria-hidden', 'true');
+    const gl = canvas.getContext('webgl', { alpha: false, antialias: false, depth: false, powerPreference: 'low-power' });
+    if (!gl) return;
+    const compile = (type, source) => {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
+      return shader;
+    };
+    try {
+      const program = gl.createProgram();
+      gl.attachShader(program, compile(gl.VERTEX_SHADER, `attribute vec2 a_position;
+        void main() { gl_Position = vec4(a_position, 0.0, 1.0); }`));
+      gl.attachShader(program, compile(gl.FRAGMENT_SHADER, `precision highp float;
+        uniform vec2 u_size;
+        uniform float u_ratio, u_time, u_aa;
+        ${FLOW_GLSL}
+        void main() {
+          vec2 p = vec2(gl_FragCoord.x, u_size.y * u_ratio - gl_FragCoord.y) / u_ratio;
+          gl_FragColor = vec4(flowBackdrop(p, u_size, u_time, u_aa), 1.0);
+        }`));
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+      gl.useProgram(program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const position = gl.getAttribLocation(program, 'a_position');
+      gl.enableVertexAttribArray(position);
+      gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+      const at = {};
+      ['u_size', 'u_ratio', 'u_time', 'u_aa'].forEach(name => { at[name] = gl.getUniformLocation(program, name); });
+      host.prepend(canvas);
+      host.classList.add('is-flowing');
+      flow = { canvas, gl, at, width: 0, height: 0, ratio: 0, frame: 0, last: 0 };
+    } catch (error) {
+      console.warn('Liquid Glass: flowing backdrop unavailable.', error);
+      return;
+    }
+    fitFlow();
+    window.addEventListener('resize', () => flow && fitFlow(), { passive: true });
+    canvas.addEventListener('webglcontextlost', () => {
+      cancelAnimationFrame(flow.frame);
+      canvas.remove();
+      host.classList.remove('is-flowing');
+      flow = null;
+    });
+    // 30 fps while the page is visible (rAF stops in background tabs).
+    const tick = now => {
+      if (!flow) return;
+      flow.frame = requestAnimationFrame(tick);
+      if (reducedMotion.matches || now - flow.last < 1000 / FLOW_FPS - 2) return;
+      flow.last = now;
+      drawFlow();
+    };
+    flow.frame = requestAnimationFrame(tick);
+    reducedMotion.addEventListener('change', () => flow && drawFlow());
+  }
+
   // --- Nav lens (WebGL, phones) ----------------------------------------------
   // The computer nav refracts its backdrop with an SVG filter on the GPU.
   // iPhone browsers (all WebKit) can neither use that filter on a backdrop
@@ -754,9 +879,10 @@ if (root.dataset.liquidGlass !== 'upstream') {
     }`;
   // Same steps as createFilter's chain for the nav (sRGB, premultiplied).
   const LENS_FRAGMENT = `precision highp float;
+    ${FLOW_GLSL}
     varying vec2 v_uv;
-    uniform vec2 u_navSize, u_navPos, u_bgSize;
-    uniform float u_scroll, u_scale, u_saturate;
+    uniform vec2 u_navSize, u_navPos, u_bgSize, u_viewSize;
+    uniform float u_scroll, u_scale, u_saturate, u_flow, u_time, u_aa;
     uniform vec4 u_posterRect, u_tileARect, u_tileBRect;
     uniform sampler2D u_map, u_specular, u_bg, u_poster, u_tileA, u_tileB;
     vec4 inRect(sampler2D picture, vec4 rect, vec2 point) {
@@ -768,7 +894,9 @@ if (root.dataset.liquidGlass !== 'upstream') {
       vec4 map = texture2D(u_map, v_uv);
       vec2 view = u_navPos + v_uv * u_navSize + (map.rg - 0.5) * u_scale;
       vec2 page = view + vec2(0.0, u_scroll);
-      vec4 color = texture2D(u_bg, clamp(view / u_bgSize, 0.0, 1.0));
+      // The flowing backdrop is computed, not photographed, on the page's clock.
+      vec4 color = u_flow > 0.5 ? vec4(flowBackdrop(view, u_viewSize, u_time, u_aa), 1.0)
+        : texture2D(u_bg, clamp(view / u_bgSize, 0.0, 1.0));
       vec4 poster = inRect(u_poster, u_posterRect, page);
       color = poster + color * (1.0 - poster.a);
       vec4 content = inRect(u_tileA, u_tileARect, page) + inRect(u_tileB, u_tileBRect, page);
@@ -896,7 +1024,8 @@ if (root.dataset.liquidGlass !== 'upstream') {
     gl.enableVertexAttribArray(position);
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
     const at = {};
-    ['u_navSize', 'u_navPos', 'u_bgSize', 'u_scroll', 'u_scale', 'u_saturate', 'u_posterRect', 'u_tileARect',
+    ['u_navSize', 'u_navPos', 'u_bgSize', 'u_viewSize', 'u_scroll', 'u_scale', 'u_saturate', 'u_flow', 'u_time', 'u_aa',
+      'u_posterRect', 'u_tileARect',
       'u_tileBRect', 'u_map', 'u_specular', 'u_bg', 'u_poster', 'u_tileA', 'u_tileB']
       .forEach(name => { at[name] = gl.getUniformLocation(program, name); });
     ['u_map', 'u_specular', 'u_bg', 'u_poster', 'u_tileA', 'u_tileB'].forEach((name, unit) => gl.uniform1i(at[name], unit));
@@ -976,13 +1105,17 @@ if (root.dataset.liquidGlass !== 'upstream') {
       covered = tiles[0].top <= needTop && tiles[tiles.length - 1].top + tiles[tiles.length - 1].height >= needBottom &&
         (tiles.length === 1 || Math.abs(tiles[0].top + tiles[0].height - tiles[1].top) < 1);
     }
-    const ready = Boolean(lens.map && lens.bg && (lens.poster || !lens.posterElement) && covered);
+    const ready = Boolean(lens.map && (flow || lens.bg) && (lens.poster || !lens.posterElement) && covered);
     canvas.classList.toggle('is-ready', ready);
     if (!ready) return;
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.uniform2f(at.u_navSize, n.width, n.height);
     gl.uniform2f(at.u_navPos, n.left, n.top);
-    gl.uniform2f(at.u_bgSize, lens.bg.width, lens.bg.height);
+    gl.uniform2f(at.u_bgSize, lens.bg?.width || 1, lens.bg?.height || 1);
+    gl.uniform1f(at.u_flow, flow ? 1 : 0);
+    gl.uniform2f(at.u_viewSize, flow?.width || innerWidth, flow?.height || innerHeight);
+    gl.uniform1f(at.u_time, flowTime());
+    gl.uniform1f(at.u_aa, 0.6 * n.width / canvas.width);
     gl.uniform1f(at.u_scroll, scrollY);
     gl.uniform1f(at.u_scale, 2 * KINDS.nav.bezelWidth * KINDS.nav.refractionScale);
     gl.uniform1f(at.u_saturate, KINDS.nav.saturate ?? 1.3);
@@ -990,7 +1123,7 @@ if (root.dataset.liquidGlass !== 'upstream') {
     rect('u_posterRect', lens.poster);
     rect('u_tileARect', tiles[0]);
     rect('u_tileBRect', tiles[1]);
-    [lens.map, lens.specular, lens.bg.texture, lens.poster?.texture, tiles[0]?.texture, tiles[1]?.texture]
+    [lens.map, lens.specular, lens.bg?.texture, lens.poster?.texture, tiles[0]?.texture, tiles[1]?.texture]
       .forEach((texture, unit) => {
         gl.activeTexture(gl.TEXTURE0 + unit);
         gl.bindTexture(gl.TEXTURE_2D, texture || blank);
@@ -1001,7 +1134,7 @@ if (root.dataset.liquidGlass !== 'upstream') {
   // Pictures to take, most urgent first: backdrop, poster, the page under
   // the nav, then the pictures either side of it.
   function nextPicture() {
-    if (!lens.bg) return { kind: 'bg' };
+    if (!flow && !lens.bg) return { kind: 'bg' };
     if (lens.posterElement && !lens.poster) return { kind: 'poster' };
     const page = document.getElementById('body-wrap');
     if (!page) return null;
@@ -1200,7 +1333,7 @@ if (root.dataset.liquidGlass !== 'upstream') {
     lens.observer?.disconnect();
     lens.canvas.remove();
     lens.nav.classList.remove('lg-lensed');
-    lens.listeners.forEach(([target, type, handler]) => target.removeEventListener(type, handler));
+    lens.listeners.forEach(([target, type, handler, capture]) => target.removeEventListener(type, handler, capture));
     lens = null;
   }
 
@@ -1279,6 +1412,27 @@ if (root.dataset.liquidGlass !== 'upstream') {
     });
     // A menu switch: pictures pause until the new page is in (pjax:complete;
     // at most 10 s if it never comes), and everything taken meanwhile is void.
+    // An image that finishes loading after its picture was taken (lazy
+    // Douban covers, link avatars) is blank in it: retake that picture.
+    const imageLoaded = event => {
+      const image = event.target;
+      if (!lens || image.tagName !== 'IMG') return;
+      if (lens.posterElement?.contains(image)) {
+        if (lens.poster) lens.posterStale = true;
+      } else if (document.getElementById('body-wrap')?.contains(image)) {
+        const box = image.getBoundingClientRect();
+        const top = box.top + scrollY;
+        const bottom = box.bottom + scrollY;
+        lens.tiles.forEach(tile => {
+          if (tile.top < bottom && tile.top + tile.height > top) tile.stale = true;
+        });
+      } else {
+        return;
+      }
+      scheduleLensPicture();
+    };
+    document.addEventListener('load', imageLoaded, true);
+    lens.listeners.push([document, 'load', imageLoaded, true]);
     on(document, 'pjax:send', () => {
       resetLens();
       lens.switching = performance.now() + 10000;
@@ -1335,6 +1489,7 @@ if (root.dataset.liquidGlass !== 'upstream') {
       pointer = null;
     }, { passive: true });
     forcedColors.addEventListener('change', () => visible.forEach(schedule));
+    startFlow();
     // Phones only: computers without SVG backdrops keep the CSS material.
     const phone = matchMedia('(hover: none) and (pointer: coarse)').matches;
     if (phone && !svgBackdrop && !forcedColors.matches && CSS.supports('clip-path', 'inset(0 round 1px)')) startLens();
