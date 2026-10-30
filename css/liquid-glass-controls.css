@@ -1,0 +1,556 @@
+/*
+ * Navigation and contents adapters for xiaojiaenen/liquid-glass (MIT).
+ * Moving selected segment: src/components/GlassSegmented.tsx (one container
+ * lens with one moving lens, not a lens per item). Material: liquid-glass.css.
+ * Existing Butterfly typography, link metrics and layout are preserved.
+ */
+
+:root {
+    /* UIKit springs as linear() samples (liquid-glass-controls.js samples the
+     * travel spring itself). Lift: 0.4s, damping 0.7 (≈4.6% overshoot).
+     * Settle: 0.5s, damping 0.8 (≈1.5%). */
+    --lg-lift: cubic-bezier(0.3, 1.45, 0.55, 1);
+    --lg-settle: cubic-bezier(0.25, 1.12, 0.4, 1);
+}
+
+@supports (transition-timing-function: linear(0, 1)) {
+    :root {
+        --lg-lift: linear(0, 0.0428, 0.1467, 0.2815, 0.4255, 0.5639, 0.6877, 0.7922, 0.876, 0.9397, 0.9856, 1.0162, 1.0346, 1.0436, 1.046, 1.0438, 1.0389, 1.0327, 1.0261, 1.0197, 1.0141, 1.0093, 1.0055, 1.0026, 1);
+        --lg-settle: linear(0, 0.0328, 0.1131, 0.219, 0.3349, 0.4501, 0.5578, 0.6541, 0.7372, 0.8067, 0.8632, 0.908, 0.9423, 0.968, 0.9864, 0.9991, 1.0073, 1.0122, 1.0145, 1.0152, 1.0146, 1.0134, 1.0118, 1.01, 1);
+    }
+}
+
+#nav .menus_items {
+    position: relative;
+}
+
+#saul-intro .scroll-indicator {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#saul-intro .scroll-indicator:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 6px;
+}
+
+/* Light glass: dark labels, with a faint white underline of light. */
+#nav #blog-info,
+#nav #toggle-menu {
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+/* Labels sit UNDER the lens (z 2 < 3): the lens's backdrop filter then
+ * refracts and magnifies the icon and text beneath it. */
+#nav .menus_items .menus_item > .site-page {
+    position: relative;
+    z-index: 2;
+    color: var(--lg-label) !important;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+    transition: transform 0.3s var(--lg-spring);
+}
+
+#nav .menus_items .menus_item > .site-page.is-current {
+    font-weight: 600;
+}
+
+/* Selected tint (iOS: the selected tab takes the accent). Over the yellow
+ * poster the icon stays white; once the bar is pinned over the dark page it
+ * takes the Saul yellow. */
+#nav .menus_items .menus_item > .site-page > i {
+    transition: color 0.25s ease;
+}
+
+#liquid-nav-anchor.is-pinned #nav .menus_items .menus_item > .site-page.is-current > i {
+    color: var(--lg-accent-ink);
+}
+
+/* Each menu label is its own small glass capsule (upstream regular-control
+ * tint, LGOS hairline and diagonal rims). CSS only: no extra backdrop
+ * filter. Shells stay under the lens; the selected item's shell fades out
+ * while the lens rests on it, so the bezel never bends a second rim. */
+#nav .menus_items .menus_item > .site-page::before {
+    content: '';
+    position: absolute;
+    inset: -5px -6px -3px;
+    z-index: -1;
+    box-sizing: border-box;
+    border: 0.5px solid var(--lgos-border);
+    border-radius: 999px;
+    background: var(--lg-control-tint);
+    box-shadow:
+        inset 1.5px -1.5px 1px -1px var(--lgos-rim-bl),
+        inset -1.5px 1.5px 1px -1px var(--lgos-rim-tr),
+        0 1px 2px rgba(0, 0, 0, 0.06);
+    pointer-events: none;
+    transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+#nav .menus_items .menus_item > .site-page.is-current::before {
+    opacity: 0;
+    transition: background-color 0.2s ease, opacity 0.2s ease 0.18s;
+}
+
+#nav .menus_items .menus_item > .site-page:hover::before {
+    background: rgba(255, 255, 255, 0.6);
+}
+
+#nav .menus_items .menus_item > .site-page:hover {
+    transform: translateY(-0.5px);
+}
+
+#nav .menus_items .menus_item > .site-page:active {
+    transform: scale(0.96);
+}
+
+/* Butterfly's hover underline is already invisible here; its `transition:
+ * all .3s` (and `a { transition: all .2s }`) would animate the selected
+ * label's font-weight on the main thread, a layout every frame (up to
+ * ~13ms each) while the lens travels. */
+#nav .menus_items .menus_item > .site-page::after {
+    content: none !important;
+}
+
+/* --- Selection lens (iOS 26 tab-bar lens) --------------------------------
+ * Geometry: the box is set once per move (left/top via translate, width and
+ * height); the travel is a WAAPI transform on the host (translate + size
+ * morph + droplet), so it runs on the compositor and no map is regenerated
+ * mid-flight. Lift and materialise: `scale` and `opacity` on the two
+ * optical layers, never on the host (opacity < 1 on an ancestor would make
+ * it a backdrop root and empty the lens). */
+.liquid-glass-pill {
+    --pill-lift: 1.14 1.18;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--pill-width, 0px);
+    height: var(--pill-height, 0px);
+    translate: var(--pill-x, 0px) var(--pill-y, 0px);
+    border-radius: 999px;
+    background: var(--lg-selected-tint);
+    pointer-events: none;
+    visibility: hidden;
+    transform-origin: 50% 50%;
+    will-change: transform;
+}
+
+.liquid-glass-pill.is-visible {
+    visibility: visible;
+}
+
+/* Resting bead: a light glass pill (UIKit's resting lens is white ~30%;
+ * toned for the dark page). */
+.liquid-glass-pill.lg-surface {
+    --lg-tint: rgba(255, 255, 255, 0.55);
+    --lg-lens-tint: rgba(255, 255, 255, 0.08);
+}
+
+.liquid-glass-pill.lg-surface > .lg-optical-layer,
+.liquid-glass-pill.lg-surface > .lg-lens-layer {
+    transition: scale 0.5s var(--lg-settle), opacity 0.3s ease !important;
+}
+
+/* Lifted: both layers grow on the lift spring; the clear magnifying lens
+ * replaces the bead ("materialises by modulating its lensing"). */
+.liquid-glass-pill.lg-surface.is-lifted > .lg-optical-layer,
+.liquid-glass-pill.lg-surface.is-lifted > .lg-lens-layer {
+    scale: var(--pill-lift);
+    transition: scale 0.4s var(--lg-lift), opacity 0.14s ease !important;
+}
+
+.liquid-glass-pill.lg-surface.is-lifted.is-glass > .lg-optical-layer {
+    opacity: 0;
+}
+
+/* The lifted optics layer (created by liquid-glass.js for pills). Box rules
+ * mirror .lg-optical-layer so theme rules restyling children cannot move it. */
+.lg-surface > .lg-lens-layer {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: -1 !important;
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box;
+    overflow: hidden;
+    overflow: clip;
+    border: 0.5px solid rgba(255, 255, 255, 0.85);
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    background-color: var(--lg-lens-tint, rgba(255, 255, 255, 0.025));
+    /* Bright diagonal rims, UIKit's darker band inside the top edge, a lifted
+     * shadow. */
+    box-shadow:
+        inset 1.5px -1.5px 1px -1px rgba(255, 255, 255, 0.95),
+        inset -1.5px 1.5px 1px -1px rgba(255, 255, 255, 0.85),
+        inset 0 7px 8px -7px rgba(15, 23, 42, 0.14),
+        0 8px 20px rgba(15, 23, 42, 0.14),
+        0 2px 5px rgba(15, 23, 42, 0.08);
+}
+
+.lg-surface.is-glass > .lg-lens-layer {
+    -webkit-backdrop-filter: var(--lg-filter);
+    backdrop-filter: var(--lg-filter);
+}
+
+/* Safari / Firefox: no SVG backdrop, so the lifted lens is a brighter,
+ * clearer film over the bead. */
+.lg-surface.is-fallback > .lg-lens-layer {
+    -webkit-backdrop-filter: saturate(1.6) brightness(1.08);
+    backdrop-filter: saturate(1.6) brightness(1.08);
+}
+
+.liquid-glass-pill.lg-surface.is-lifted > .lg-lens-layer {
+    opacity: 1;
+}
+
+/* The lens floats above its labels; pointer-events: none keeps them clickable. */
+#nav .menus_items > .liquid-nav-indicator {
+    z-index: 3;
+}
+
+#nav .liquid-nav-indicator.lg-surface,
+#sidebar #sidebar-menus .liquid-menu-indicator.lg-surface,
+#article-container > .liquid-tab-indicator.lg-surface {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Native sticky uses the document's actual scroll container and compositor.
+ * The zero-height anchor preserves the original hero/content measurements. */
+#liquid-nav-anchor {
+    position: sticky;
+    top: 0;
+    z-index: 101;
+    height: 0;
+    min-height: 0;
+    flex: 0 0 0;
+    width: 100%;
+    overflow: visible;
+}
+
+/* A floating capsule (iOS tab bar) pinned to the top of the viewport from
+ * the first screen, so the yellow poster and then the posts slide beneath
+ * the glass. left/right plus max-width and auto margins centre it without a
+ * transform. */
+#liquid-nav-anchor #nav,
+#page-header #nav {
+    z-index: 101 !important;
+    position: fixed !important;
+    top: 10px !important;
+    right: 12px;
+    left: 12px !important;
+    width: auto !important;
+    max-width: 1200px;
+    margin: 0 auto;
+    border-radius: 999px !important;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+    opacity: 1 !important;
+    visibility: visible;
+}
+
+#liquid-nav-anchor.is-pinned #blog-info:has(.nav-page-title) > .nav-site-title {
+    display: none;
+}
+
+#liquid-nav-anchor.is-pinned #blog-info > .nav-page-title {
+    display: inline;
+}
+
+html[data-liquid-controls='ready'] #page-header {
+    animation: none !important;
+    transform: none !important;
+}
+
+#page-header.liquid-nav-pinned + .layout #aside-content > .sticky_layout {
+    top: 86px !important;
+}
+
+#page-header.liquid-nav-pinned + .layout #card-toc .toc-content {
+    max-height: calc(100vh - 176px);
+}
+
+#article-container :is(h1, h2, h3, h4, h5, h6) {
+    scroll-margin-top: 86px;
+}
+
+#aside-content #card-toc .toc-content {
+    position: relative;
+}
+
+/* The TOC marker is a CSS highlight under the links (no lens): it keeps
+ * z 1 and only borrows the compositor travel. */
+#aside-content #card-toc .toc-content > .liquid-toc-indicator {
+    z-index: 1;
+    margin: 0 !important;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.6);
+    box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.8), inset 1.5px -1.5px 1px -1px rgba(255, 255, 255, 0.95);
+}
+
+/* !important: the aside's link colour rule is !important too. */
+#aside-content #card-toc .toc-content .toc-link {
+    position: relative;
+    z-index: 2;
+    color: var(--lg-text-secondary) !important;
+    transition: color 0.2s ease;
+}
+
+#aside-content #card-toc .toc-content .toc-link:hover {
+    color: var(--lg-text-primary) !important;
+}
+
+#aside-content #card-toc .toc-content .toc-link.active {
+    background: transparent !important;
+    color: var(--lg-text-primary) !important;
+}
+
+#aside-content #card-toc .toc-content .toc-link.active .toc-text {
+    color: var(--lg-text-primary) !important;
+}
+
+#aside-content #card-toc .toc-content .toc-link:focus-visible {
+    outline: 2px solid rgba(10, 132, 255, 0.7);
+    outline-offset: -2px;
+}
+
+/* The phone TOC floats over the article text, so it needs real frost
+ * (upstream's backdropBlur, combined with the lens in one filter list). */
+@media (max-width: 900px) {
+    #aside-content #card-toc {
+        --lg-tint: rgba(250, 251, 253, 0.74);
+    }
+
+    #aside-content #card-toc.lg-surface.is-glass > .lg-optical-layer {
+        -webkit-backdrop-filter: blur(14px) var(--lg-filter) !important;
+        backdrop-filter: blur(14px) var(--lg-filter) !important;
+    }
+
+    #aside-content #card-toc.lg-surface.is-fallback > .lg-optical-layer {
+        -webkit-backdrop-filter: blur(18px) saturate(1.5) !important;
+        backdrop-filter: blur(18px) saturate(1.5) !important;
+    }
+}
+
+@media (max-width: 768px) {
+    #liquid-nav-anchor #nav,
+    #page-header #nav {
+        top: 8px !important;
+        right: 8px;
+        left: 8px !important;
+        padding: 0 20px;
+    }
+}
+
+/* Reduce Motion: no elastic travel, no lift (Apple: decreases intensity
+ * and disables elastic properties). The JS also skips both. */
+@media (prefers-reduced-motion: reduce) {
+    .liquid-glass-pill,
+    .liquid-glass-pill > * {
+        transition: none !important;
+        animation: none !important;
+    }
+
+    .liquid-glass-pill.lg-surface.is-lifted > .lg-optical-layer,
+    .liquid-glass-pill.lg-surface.is-lifted > .lg-lens-layer {
+        scale: none;
+    }
+
+    .liquid-glass-pill.lg-surface.is-lifted.is-glass > .lg-optical-layer {
+        opacity: 1;
+    }
+
+    .liquid-glass-pill.lg-surface.is-lifted > .lg-lens-layer {
+        opacity: 0;
+    }
+}
+
+@media (forced-colors: active) {
+    .liquid-glass-pill,
+    .liquid-nav-indicator,
+    .liquid-toc-indicator {
+        background: Highlight !important;
+        filter: none !important;
+    }
+
+    .lg-surface > .lg-lens-layer {
+        display: none !important;
+    }
+
+    /* The lens is above the labels: in forced colours it becomes a ring so
+     * the selected label stays readable. */
+    #nav .menus_items > .liquid-nav-indicator,
+    #sidebar #sidebar-menus .menus_items > .liquid-menu-indicator,
+    #article-container > .liquid-tab-indicator {
+        background: transparent !important;
+        outline: 2px solid Highlight;
+    }
+
+    #nav .menus_items .menus_item > .site-page::before {
+        background: Canvas;
+        border-color: ButtonText;
+        box-shadow: none;
+    }
+
+    #aside-content #card-toc .toc-content .toc-link.active,
+    #aside-content #card-toc .toc-content .toc-link.active .toc-text {
+        color: HighlightText !important;
+    }
+}
+
+/* The compact navigation uses the same moving optical lens as the desktop
+ * menu. All existing row dimensions and group folding remain with Butterfly. */
+#sidebar #sidebar-menus .menus_items {
+    position: relative;
+    isolation: isolate;
+}
+
+#sidebar #sidebar-menus .menus_items .site-page {
+    position: relative;
+    z-index: 2;
+    background: transparent !important;
+    transform: none !important;
+    /* Not `all` (theme): font-weight must not animate with a layout per frame. */
+    transition: color 0.2s ease !important;
+}
+
+#sidebar #sidebar-menus .menus_items .site-page.is-current {
+    color: var(--lg-text-primary) !important;
+    font-weight: 600;
+}
+
+#sidebar #sidebar-menus .menus_items .site-page.is-current > i {
+    color: var(--lg-accent-ink);
+}
+
+/* Above the rows: the drawer lens magnifies the row it rests on. */
+#sidebar #sidebar-menus .menus_items > .liquid-menu-indicator {
+    z-index: 3;
+    --pill-lift: 1.04 1.16;
+}
+
+@media (forced-colors: active) {
+    #sidebar #sidebar-menus .liquid-menu-indicator > .lg-optical-layer {
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+}
+
+/* Douban 在看 / 想看 / 已看: the same sliding glass lens as the nav, in the
+ * same clear white glass; lifted it magnifies the tabs it passes. The tabs stay as clear capsules under it. */
+#article-container:has(> #idouban) {
+    position: relative;
+}
+
+/* Article typography rules (spans, margins) would otherwise put the lens
+ * back into the text flow. Position comes from `translate`. */
+#article-container > .liquid-tab-indicator {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 3;
+    display: block;
+    margin: 0 !important;
+    padding: 0 !important;
+    --pill-lift: 1.12 1.16;
+}
+
+#article-container > .liquid-tab-indicator.lg-surface[data-lg-kind='pill'] {
+    --lg-tint: rgba(255, 255, 255, 0.55);
+    --lg-lens-tint: rgba(255, 255, 255, 0.08);
+}
+
+#idouban .idouban-tabs a.idouban-tab {
+    position: relative;
+    z-index: 2;
+    transition: color 0.25s var(--lg-spring), background-color 0.2s ease;
+}
+
+#idouban .idouban-tabs a.idouban-tab.idouban-tab-active {
+    color: var(--lg-text-primary) !important;
+    font-weight: 600;
+    background: transparent !important;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+#idouban .idouban-tabs a.idouban-tab:not(.idouban-tab-active):hover {
+    color: var(--lg-text-primary) !important;
+    background: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* --- pjax page switch --------------------------------------------------
+ * A frosted sheet over the content area while the next page is fetched and
+ * swapped. It fades with its OWN opacity. Never put opacity < 1 (or filter,
+ * mask, clip-path, mix-blend-mode, will-change of those) on #body-wrap,
+ * #content-inner, #aside-content, #footer or #page-header: such an ancestor
+ * becomes the Backdrop Root, and every glass lens inside it then refracts
+ * only its siblings instead of the page behind, i.e. goes flat until the
+ * animation ends. A transform on an ancestor is safe. */
+#lg-page-veil {
+    position: fixed;
+    top: var(--lg-veil-top, 0px);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    /* Above content (z <= 2) and the poster (1); below APlayer (99),
+     * #rightside (100), the nav anchor (101) and the drawer (102/103). */
+    z-index: 98;
+    pointer-events: none;
+    visibility: hidden;
+    opacity: 0;
+    background: rgba(248, 250, 252, 0.45);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+    transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.28s;
+}
+
+html.lg-pjax-busy #lg-page-veil {
+    visibility: visible;
+    opacity: 1;
+    transition: opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s;
+}
+
+/* New content rises in as the veil lifts. Transform only, and it replaces
+ * Butterfly's 1 s `bottom-top` entrance (same selectors, loaded later). While
+ * the veil is up the new nodes wait on their first frame. `backwards` (not
+ * `both`) so no animated transform lingers afterwards: a lingering transform
+ * would make #content-inner the containing block of the phone's fixed TOC. */
+#content-inner,
+#footer {
+    animation: lg-page-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+html.lg-pjax-busy #content-inner,
+html.lg-pjax-busy #footer {
+    animation-play-state: paused;
+}
+
+@keyframes lg-page-rise {
+    from { transform: translate3d(0, 28px, 0); }
+    to { transform: none; }
+}
+
+@media (max-width: 768px) {
+    #lg-page-veil {
+        -webkit-backdrop-filter: blur(10px) saturate(1.3);
+        backdrop-filter: blur(10px) saturate(1.3);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #lg-page-veil {
+        transition: none !important;
+    }
+
+    #content-inner,
+    #footer {
+        animation: none !important;
+    }
+}

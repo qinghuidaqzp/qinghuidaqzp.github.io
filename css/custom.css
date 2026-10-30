@@ -1,6 +1,4 @@
-/* ==========================================================================
-   iOS 26 "Deep Liquid" 终极融合版 - 针对 qinghuidaqzp.github.io 优化
-   ========================================================================== */
+/* Existing blog geometry and Saul hero. Material: liquid-glass.css. */
 
 /* --- 1. 全局重置：暴力清除主题自带背景 --- */
 body, #web_bg, #content-inner, #page-header, #footer {
@@ -12,118 +10,26 @@ body, #web_bg, #content-inner, #page-header, #footer {
 /* --- 2. 核心底层：深邃流体动态背景 --- */
 body {
     /* 深色油画质感底色 */
-    background-color: #050511 !important;
+    background-color: var(--glass-body, #dce7ef) !important;
     min-height: 100vh;
-    color: #e6e6e6 !important; /* 全局文字强制变白 */
+    color: var(--glass-text, #24354d) !important;
     font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif !important;
 }
 
-/* 创建两个流动的极光色块 - 营造液态感 */
-body::before, body::after {
-    content: '';
-    position: fixed;
-    z-index: -2; /* 放在最底层 */
-    border-radius: 50%;
-    filter: blur(90px); /* 极致模糊，像晕开的水彩 */
-    opacity: 0.5;
-    animation: floating 20s infinite ease-in-out alternate;
-}
-
-/* 色块1：冷调蓝紫 */
-body::before {
-    width: 70vw; height: 70vw;
-    top: -10%; left: -10%;
-    background: radial-gradient(circle, #2c3e50, #4ca1af);
-    background: linear-gradient(135deg, #3b2c85, #243b55);
-}
-
-/* 色块2：暖调洋红（对比色） */
-body::after {
-    width: 60vw; height: 60vw;
-    bottom: -10%; right: -10%;
-    background: linear-gradient(135deg, #742a55, #8e44ad);
-    animation-delay: -10s;
-}
-
-@keyframes floating {
-    0% { transform: translate(0, 0) scale(1); }
-    100% { transform: translate(40px, -30px) scale(1.1); }
-}
-
-
-/* --- 3. 玻璃容器：智能匹配 Hexo 常见区块 --- */
-/* 这里涵盖了文章卡片、侧边栏、顶部导航、底部 */
-.recent-post-item,          /* Butterfly 主页文章 */
-.post-content,              /* 文章详情页 */
-.card-widget,               /* 侧边栏小部件 */
+/* --- 3. 保留原有容器几何；玻璃材质由 liquid-glass.css 统一提供 --- */
+/* 只作用于真正的玻璃卡片。旧版的三侧透明边框会在深色玻璃边缘露出一条亮线，改为无边框。 */
+#recent-posts .recent-post-item,
 #aside-content .card-widget,
-#page-header.nav-fixed #nav,/* 顶部导航栏 */
-.layout > div,              /* 通用布局 */
-article,
-.post-block,                /* Next 主题 */
-.navbar {
-    /* [核心] 厚重磨砂玻璃材质 */
-    background: rgba(20, 20, 30, 0.55) !important; 
-    
-    /* [核心] iOS 饱和度模糊 (Saturated Blur) */
-    -webkit-backdrop-filter: blur(40px) saturate(160%) !important;
-    backdrop-filter: blur(40px) saturate(160%) !important;
-    
-    /* [核心] 光学边框：去掉了黑色线条，只保留光照 */
-    border: none !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
-    border-left: 1px solid rgba(255, 255, 255, 0.05) !important;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.2) !important; /* 底部加深，增加厚度感 */
-    
-    /* 阴影：让物体“沉”在流体背景中 */
-    box-shadow: 
-        0 20px 40px -10px rgba(0, 0, 0, 0.5),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.03) !important;
-        
+.layout > div:first-child:not(#recent-posts) {
+    border: 0 !important;
     border-radius: 24px !important;
-    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), background 0.3s !important;
 }
 
-/* --- 4. "大清洗"：去除卡片内部所有不和谐的背景色 --- */
-/* 这是解决“黑色块没有融合”的关键 */
-.recent-post-item *, 
-.card-widget *, 
-article *,
-.post-content * {
-    background-color: transparent !important; /* 强制透明，露出玻璃 */
-    border-color: rgba(255, 255, 255, 0.1) !important; /* 线条变淡 */
-}
-
-/* --- 5. 细节修复：文字与高亮 --- */
-/* 标题颜色 */
-h1, h2, h3, h4, h5, h6, .article-title, .blog-title {
-    color: #ffffff !important;
-    text-shadow: 0 2px 10px rgba(0,0,0,0.3); /* 文字增加立体感 */
-}
-
-/* 正文颜色 */
-p, span, li, .article-content {
-    color: rgba(255, 255, 255, 0.85) !important;
-}
-
-/* 链接颜色 */
+/* --- 5. 文字、链接、代码块颜色 ---
+ * 由 liquid-glass.css 按区域设置（正文、侧栏、导航各自的层级与对比度），
+ * 不再用全局 !important 覆盖所有 p / span / a。 */
 a {
-    color: #8cbaff !important; /* 亮蓝色链接 */
-    text-decoration: none !important;
-}
-
-/* 鼠标悬停效果：玻璃微微发光 */
-.recent-post-item:hover, .card-widget:hover {
-    transform: translateY(-6px) scale(1.01) !important;
-    background: rgba(50, 50, 70, 0.6) !important; /* 变亮 */
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.2) !important;
-}
-
-/* 代码块特别处理：给一个深色底，否则看不清代码 */
-figure.highlight, code, pre {
-    background: rgba(0, 0, 0, 0.4) !important;
-    border-radius: 12px !important;
-    box-shadow: inset 0 2px 6px rgba(0,0,0,0.5) !important;
+    text-decoration: none;
 }
 
 /* 去除多余的顶部图片遮挡 (针对 Butterfly 等主题) */
@@ -219,12 +125,7 @@ figure.highlight, code, pre {
     padding: 0 !important;
     margin-bottom: 0 !important;
 }
-/* 隐藏原来的导航栏背景，让它悬浮在黄色海报上 */
-#nav {
-    background: transparent !important;
-    box-shadow: none !important;
-    z-index: 9999999; /* 保证菜单能点 */
-}
+/* 导航栏现在是悬浮在海报上的液态玻璃胶囊，背景、层级和位置见 liquid-glass*.css。 */
 
 /* 2. 将 Saul 海报变成页面的“第一屏” */
 #saul-intro {
@@ -261,7 +162,7 @@ figure.highlight, code, pre {
     font-family: 'Anton', sans-serif;
     font-size: 13vw; /* 字体再大一点，更有冲击力 */
     line-height: 0.85;
-    color: #c92626;
+    color: #ffffff !important;
     text-align: center;
     text-transform: uppercase;
     margin: 0;
@@ -273,7 +174,7 @@ figure.highlight, code, pre {
 .saul-subtitle {
     font-family: 'Permanent Marker', cursive;
     font-size: 1.8rem;
-    color: #1a1a1a;
+    color: rgba(255, 255, 255, 0.85) !important;
     margin-top: 30px;
     transform: rotate(-2deg);
 }

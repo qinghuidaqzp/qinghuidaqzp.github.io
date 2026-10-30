@@ -14,7 +14,7 @@ var ap = new APlayer({
         name: '22',
         artist: 'Taylor Swift',
         url: '/music/22.mp3',
-        cover: 'https://i.imgur.com/123456.jpg'
+        cover: ''
       },
       {
         name: 'Cruel Summer',

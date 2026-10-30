@@ -1,0 +1,1357 @@
+/*
+ * Liquid glass for Butterfly, combining two references:
+ *
+ * - Optics (SVG refraction, specular, tints, BorderGlow) adapted from
+ *   xiaojiaenen/liquid-glass, MIT:
+ *   https://github.com/xiaojiaenen/liquid-glass/tree/d61ba1109a62f505b71f517470e8597e6dbfc268
+ *   src/lib/LiquidGlass.css, BorderGlow.css, tokens.ts and src/components/*.
+ *
+ * - Material recipe (hairline border, diagonal inset rim highlights, inner
+ *   shade, blurred offset inner ring) adapted from LGOS-Studio/LiquidGlass,
+ *   https://github.com/LGOS-Studio/LiquidGlass/blob/49e6e609e32c68f3a8f58eb0e04eae2f567b8ee9/liquid-glass.css
+ *   Copyright (c) 2026 SYSTEM-NTDEV-PRO (LGOS Studio). Licensed under the MIT
+ *   License; full text: /vendor/lgos-liquid-glass/LICENSE
+ *
+ * Every glass surface gets a decorative child span.lg-optical-layer that owns
+ * the backdrop filter and the material. Butterfly's layout and text stay as
+ * they are; nothing here wraps text or adds overflow to theme containers.
+ */
+
+:root,
+[data-theme='light'],
+[data-theme='dark'] {
+    /* Clear glass: tints are kept low so the backdrop reads through; the
+     * white rims and soft shadow are what define each pane. */
+    --lg-default-tint: rgba(255, 255, 255, 0.06);
+    --lg-control-tint: rgba(255, 255, 255, 0.14);
+    --lg-card-tint: rgba(255, 255, 255, 0.08);
+    --lg-modal-tint: rgba(250, 251, 253, 0.62);
+    --lg-accent-tint: rgba(0, 122, 255, 0.3);
+    --lg-overlay-tint: rgba(15, 23, 42, 0.16);
+    --lg-muted-tint: rgba(0, 0, 0, 0.04);
+    --lg-selected-tint: rgba(255, 255, 255, 0.3);
+    --lg-reading-tint: rgba(255, 255, 255, 0.12);
+    --lg-surface-tint: rgba(255, 255, 255, 0.07);
+    --lg-chrome-tint: rgba(255, 255, 255, 0.1);
+    --lg-text-shadow: none;
+    --lg-text-primary: #1d1d1f;
+    --lg-text-secondary: rgba(29, 29, 31, 0.66);
+    --lg-text-tertiary: rgba(29, 29, 31, 0.45);
+    --lg-label: #1d1d1f;
+    --lg-label-secondary: rgba(29, 29, 31, 0.66);
+    --lg-link-color: #0866d6;
+    /* Accents are clear white glass, not colour. */
+    --lg-accent: rgba(255, 255, 255, 0.7);
+    --lg-accent-ink: #1d1d1f;
+    --lg-border-color: rgba(0, 0, 0, 0.08);
+    --lg-separator-color: rgba(0, 0, 0, 0.08);
+    --lg-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --lg-gentle: cubic-bezier(0.4, 0.8, 0.4, 1);
+    --lg-material-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+
+    /* LGOS .liquid (light) material: bright white rims on one diagonal, a
+     * faint inner shade for thickness, a soft drop shadow. */
+    --lgos-border: rgba(255, 255, 255, 0.7);
+    --lgos-rim-bl: rgba(255, 255, 255, 0.95);
+    --lgos-rim-tr: rgba(255, 255, 255, 0.9);
+    --lgos-shade: rgba(15, 23, 42, 0.1);
+    --lgos-shade-blur: 8px;
+    --lgos-drop: 0 10px 28px rgba(15, 23, 42, 0.1), 0 2px 6px rgba(15, 23, 42, 0.06);
+    --lgos-ring: rgba(15, 23, 42, 0.18);
+    --lgos-ring-width: 1px;
+    --lgos-ring-blur: 12px;
+    --lgos-ring-top: 35%;
+    /* "Lite" LGOS glass for surfaces nested inside a lens: no second
+     * backdrop filter, just fill, hairline and rims. */
+    --lg-lite-bg: rgba(255, 255, 255, 0.2);
+    --lg-lite-shadow: inset 1.5px -1.5px 1px -1px rgba(255, 255, 255, 0.95), inset -1.5px 1.5px 1px -1px rgba(255, 255, 255, 0.9), inset 0 0 0 0.5px rgba(255, 255, 255, 0.6), 0 1px 3px rgba(15, 23, 42, 0.08);
+
+    /* Older aliases still read by custom.css. */
+    --glass-body: #eef2f7;
+    --glass-text: var(--lg-text-primary);
+    --glass-heading: var(--lg-text-primary);
+    --glass-body-text: var(--lg-text-primary);
+    --glass-muted: var(--lg-text-secondary);
+    --glass-link: var(--lg-link-color);
+    --glass-focus: rgba(10, 132, 255, 0.7);
+    --glass-text-shadow: none;
+
+    /* Butterfly variables, so theme rules render on the light glass. */
+    --font-color: var(--lg-text-primary);
+    --text-highlight-color: var(--lg-text-primary);
+    --light-grey: var(--lg-text-secondary);
+    --dark-grey: var(--lg-text-secondary);
+    --white: #fff;
+    --card-meta: var(--lg-text-secondary);
+    --toc-link-color: var(--lg-text-secondary);
+    --hr-border: var(--lg-separator-color);
+    --hr-before-color: var(--lg-accent-ink);
+    --blockquote-color: var(--lg-text-secondary);
+    --blockquote-bg: var(--lg-muted-tint);
+    --sidebar-bg: var(--lg-modal-tint);
+    --sidebar-menu-bg: var(--lg-muted-tint);
+    --search-bg: var(--lg-modal-tint);
+    --search-input-color: var(--lg-text-primary);
+    --search-a-color: var(--lg-link-color);
+    --btn-color: var(--lg-text-primary);
+    --btn-bg: var(--lg-control-tint);
+    --btn-hover-color: rgba(0, 0, 0, 0.06);
+    --text-bg-hover: rgba(0, 0, 0, 0.05);
+    --card-bg: transparent;
+    --card-box-shadow: none;
+    --card-hover-box-shadow: none;
+    --default-bg-color: transparent;
+    --scrollbar-color: rgba(0, 0, 0, 0.25);
+    --pseudo-hover: var(--lg-accent-ink);
+    --headline-presudo: var(--lg-accent-ink);
+    --hl-bg: transparent;
+    --hl-color: #dce7f7;
+    --hltools-bg: rgba(255, 255, 255, 0.04);
+    --hltools-color: rgba(220, 231, 247, 0.55);
+    --hlnumber-bg: transparent;
+    --hlnumber-color: rgba(255, 255, 255, 0.32);
+    --hlscrollbar-bg: rgba(255, 255, 255, 0.18);
+    --hlexpand-bg: linear-gradient(180deg, rgba(14, 14, 24, 0.2), rgba(14, 14, 24, 0.85));
+    --tab-border-color: var(--lg-separator-color);
+    --tab-button-bg: var(--lg-muted-tint);
+    --tab-button-active-bg: rgba(255, 255, 255, 0.6);
+    --zoom-bg: rgba(246, 248, 251, 0.92);
+}
+
+html {
+    scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
+}
+
+body {
+    background: #eef2f7 !important;
+    color: var(--lg-text-primary) !important;
+}
+
+body::before,
+body::after {
+    content: none !important;
+    animation: none !important;
+}
+
+/* --- Backdrop: a pale, clear glass sheet ------------------------------ */
+
+#web_bg {
+    position: fixed;
+    inset: 0;
+    z-index: -999;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    pointer-events: none;
+    background: #eef2f7 !important;
+    opacity: 1 !important;
+    animation: none !important;
+}
+
+#web_bg::before {
+    content: '';
+    position: absolute;
+    inset: -4%;
+    /* Near-white pearl with faint iridescent tints where the old colour blobs
+     * were: the glass stays clear and light, but its lenses still have soft
+     * colour to bend. */
+    background:
+        radial-gradient(circle at 18% 22%, rgba(255, 170, 214, 0.46) 0%, transparent 42%),
+        radial-gradient(circle at 82% 18%, rgba(255, 226, 150, 0.44) 0%, transparent 40%),
+        radial-gradient(circle at 70% 78%, rgba(150, 196, 255, 0.52) 0%, transparent 46%),
+        radial-gradient(circle at 28% 82%, rgba(160, 236, 200, 0.44) 0%, transparent 44%),
+        linear-gradient(135deg, #fbfcfe 0%, #eef2f8 48%, #f6f4fb 100%) !important;
+    transform-origin: center;
+}
+
+/* Glass highlights: two soft diagonal sheens, as light catches the face of
+ * a clear pane. */
+#web_bg::after {
+    content: '' !important;
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.7) 14%, transparent 27%),
+        linear-gradient(115deg, transparent 53%, rgba(255, 255, 255, 0.5) 61%, transparent 69%);
+}
+
+/* A slow drift tied to scroll position, run by the compositor. */
+@supports (animation-timeline: scroll()) {
+    #web_bg::before {
+        animation: lg-backdrop-drift linear both;
+        animation-timeline: scroll(root);
+    }
+}
+
+@keyframes lg-backdrop-drift {
+    from { transform: translate3d(-14px, -22px, 0); }
+    to { transform: translate3d(14px, 22px, 0); }
+}
+
+#page-header.full_page #site-info {
+    visibility: hidden;
+}
+
+#recent-posts,
+#aside-content,
+article,
+.post-content {
+    background: transparent !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+}
+
+/* Material before the engine starts (and with JavaScript off). */
+.recent-post-item,
+#aside-content .card-widget,
+.layout > div:first-child:not(#recent-posts):not(.nc),
+#page-header #post-info,
+#page-header #page-site-info,
+#footer .footer-other,
+#rightside > div,
+#nav {
+    background: var(--lg-surface-tint) !important;
+    box-shadow: var(--lgos-drop) !important;
+    color: var(--lg-text-primary);
+}
+
+/* --- Glass surface ------------------------------------------------------ */
+
+.lg-surface,
+#nav.lg-surface,
+#aside-content .card-widget.lg-surface,
+.layout > div.lg-surface:first-child:not(#recent-posts) {
+    isolation: isolate;
+    -webkit-tap-highlight-color: transparent;
+    background: transparent !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+}
+
+.lg-positioned {
+    position: relative;
+}
+
+/* Theme rules such as `.btn-effects > *` and `#post-info > *` restyle every
+ * child of their host, so the injected layers assert their own box. */
+.lg-surface > .lg-optical-layer {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: -1 !important;
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box;
+    overflow: hidden;
+    overflow: clip; /* Decorative span only: clips the LGOS ring, never content. */
+    border: 0.5px solid var(--lgos-border);
+    border-radius: inherit;
+    pointer-events: none;
+    background-color: var(--lg-tint, var(--lg-card-tint));
+    /* LGOS: rim on the bottom-left/top-right diagonal, then the inner shade
+     * that reads as thickness, then the drop shadow. */
+    box-shadow:
+        inset 1.5px -1.5px 1px -1px var(--lgos-rim-bl),
+        inset -1.5px 1.5px 1px -1px var(--lgos-rim-tr),
+        inset 0 0 var(--lgos-shade-blur) var(--lgos-shade),
+        var(--lgos-drop);
+    -webkit-backdrop-filter: blur(4.8px) saturate(1.6) brightness(1.04);
+    backdrop-filter: blur(4.8px) saturate(1.6) brightness(1.04);
+    transition: background-color 0.35s var(--lg-gentle), box-shadow 0.35s var(--lg-gentle), filter 0.25s var(--lg-spring);
+}
+
+/* LGOS ::before ring: a blurred outline whose top edge sits partway down,
+ * so only a soft arc and the side walls remain inside the clip. */
+.lg-surface > .lg-optical-layer::before {
+    content: '';
+    position: absolute;
+    top: var(--lgos-ring-top);
+    left: 50%;
+    width: calc(100% - 16px);
+    height: calc(100% - 16px);
+    box-sizing: border-box;
+    border: var(--lgos-ring-width) solid var(--lgos-ring);
+    border-radius: inherit;
+    pointer-events: none;
+    transform: translateX(-50%);
+    filter: blur(var(--lgos-ring-blur));
+}
+
+/* Chromium: the SVG chain refracts the backdrop. Its specular already lights
+ * the same diagonal, so the LGOS rims are damped to avoid a double rim. */
+.lg-surface.is-glass > .lg-optical-layer {
+    -webkit-backdrop-filter: var(--lg-filter) !important;
+    backdrop-filter: var(--lg-filter) !important;
+    box-shadow:
+        inset 1.5px -1.5px 1px -1px color-mix(in srgb, var(--lgos-rim-bl) 60%, transparent),
+        inset -1.5px 1.5px 1px -1px color-mix(in srgb, var(--lgos-rim-tr) 60%, transparent),
+        inset 0 0 var(--lgos-shade-blur) var(--lgos-shade),
+        var(--lgos-drop);
+}
+
+/* Safari and Firefox: upstream's frosted fallback with its sheen and grain. */
+.lg-surface.is-fallback:not([data-lg-kind='reading']) > .lg-optical-layer {
+    background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0) 70%, rgba(255, 255, 255, 0.08) 100%);
+}
+
+.lg-surface.is-fallback > .lg-optical-layer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+    mix-blend-mode: overlay;
+}
+
+/* Cards wear the CSS material while the page scrolls (an SVG lens on every
+ * visible card re-renders its chain each scroll frame) and become a lens
+ * under a resting pointer. A light frost keeps them close to the clear lens. */
+.lg-surface.is-fallback[data-lg-kind='card'] > .lg-optical-layer {
+    -webkit-backdrop-filter: blur(1px) saturate(1.4) brightness(1.03);
+    backdrop-filter: blur(1px) saturate(1.4) brightness(1.03);
+}
+
+/* Reading slabs (#post, #page, #archive...): clear glass, no frost. */
+.lg-surface.is-fallback[data-lg-kind='reading'] > .lg-optical-layer {
+    -webkit-backdrop-filter: saturate(1.25);
+    backdrop-filter: saturate(1.25);
+}
+
+/* Both decorative spans are absolutely positioned with inset: 0, so they
+ * never size from content: strict containment keeps their repaints local. */
+.lg-surface > .lg-optical-layer,
+.lg-surface > .border-glow-effect {
+    contain: strict;
+}
+
+.lg-filter-definitions {
+    position: fixed;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+/* --- Kinds (data-lg-kind, set by liquid-glass.js) ------------------------ */
+
+/* Moving selection lenses. The LGOS 12px shade would darken a 34px pill
+ * entirely; a tight shade plus a folded ring reads as a liquid bead. */
+.lg-surface[data-lg-kind='pill'] {
+    --lg-tint: var(--lg-selected-tint);
+    --lgos-shade: rgba(15, 23, 42, 0.1);
+    --lgos-shade-blur: 6px;
+    --lgos-ring: rgba(15, 23, 42, 0.14);
+    --lgos-ring-blur: 6px;
+    --lgos-drop: 0 2px 8px rgba(15, 23, 42, 0.12);
+}
+
+.lg-surface[data-lg-kind='nav'],
+.lg-surface[data-lg-kind='dock'],
+.lg-surface[data-lg-kind='player'] {
+    --lg-tint: var(--lg-chrome-tint);
+    --lgos-shade: rgba(15, 23, 42, 0.1);
+    --lgos-shade-blur: 8px;
+    --lgos-ring-blur: 8px;
+    --lgos-drop: 0 10px 28px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.07);
+}
+
+.lg-surface[data-lg-kind='control'] {
+    --lg-tint: var(--lg-modal-tint);
+}
+
+/* Cards: longer straight rims at .75 would look drawn on, so they are
+ * softened; a 2px ring keeps the arc visible on a 300px surface; the drop
+ * shadow is tinted indigo instead of muddy black over the pink and yellow. */
+.lg-surface[data-lg-kind='card'],
+.lg-surface[data-lg-kind='header'],
+.lg-surface[data-lg-kind='reading'] {
+    --lg-tint: var(--lg-surface-tint);
+    --lgos-rim-bl: rgba(255, 255, 255, 0.95);
+    --lgos-rim-tr: rgba(255, 255, 255, 0.85);
+    --lgos-shade: rgba(15, 23, 42, 0.07);
+    --lgos-shade-blur: 14px;
+    --lgos-ring-width: 2px;
+    --lgos-ring: rgba(15, 23, 42, 0.1);
+    --lgos-ring-blur: 12px;
+    --lgos-ring-top: clamp(12px, 35%, 64px);
+    --lgos-drop: 0 10px 30px rgba(15, 23, 42, 0.09), 0 2px 6px rgba(15, 23, 42, 0.05);
+}
+
+/* Reading slabs (#post, #page, #archive...) never get an SVG map: they are
+ * document-height. They keep the clear CSS glass instead. */
+.lg-surface[data-lg-kind='reading'] {
+    --lg-tint: var(--lg-reading-tint);
+}
+
+.lg-surface[data-lg-kind='reading'] > .lg-optical-layer::before {
+    content: none;
+}
+
+/* Butterfly clips these cards (overflow: hidden), which would cut a child's
+ * outer shadow, so the drop shadow moves to the host itself. */
+#recent-posts .recent-post-item.lg-surface,
+#aside-content .card-widget.lg-surface {
+    box-shadow: var(--lgos-drop) !important;
+}
+
+#recent-posts .recent-post-item > .lg-optical-layer,
+#aside-content .card-widget > .lg-optical-layer {
+    --lgos-drop: 0 0 #0000;
+}
+
+/* --- Adaptive tone ------------------------------------------------------ */
+
+/* Over the bright yellow intro poster, floating chrome switches to the LGOS
+ * light material (.liquid) with dark labels. liquid-glass-controls.js sets
+ * .lg-on-light from what is actually underneath. */
+.lg-surface.lg-on-light,
+.lg-on-light .lg-surface {
+    --lg-tint: rgba(255, 255, 255, 0.14);
+    --lgos-border: rgba(51, 51, 51, 0.1);
+    --lgos-rim-bl: rgba(255, 255, 255, 0.92);
+    --lgos-rim-tr: rgba(255, 255, 255, 0.9);
+    --lgos-shade: rgba(15, 23, 42, 0.35);
+    --lgos-shade-blur: 3px;
+    --lgos-ring: rgba(0, 0, 0, 0.55);
+    --lgos-ring-blur: 8px;
+    --lgos-drop: 0 16px 32px rgba(15, 23, 42, 0.14);
+}
+
+.lg-on-light {
+    --lg-label: #1a1a1a;
+    --lg-label-secondary: rgba(26, 26, 26, 0.7);
+}
+
+/* --- BorderGlow (upstream), on its dedicated decorative child ----------- */
+
+.has-border-glow {
+    --border-glow-sensitivity: 40;
+    --border-glow-intensity: 1;
+}
+
+.lg-surface[data-lg-kind='card'],
+.lg-surface[data-lg-kind='reading'] {
+    --border-glow-intensity: 0.8;
+}
+
+/* inset: 0 rather than upstream's -1px: several hosts clip at the border box. */
+.lg-surface > .border-glow-effect {
+    --border-glow-proximity: 0;
+    --border-glow-angle: 45deg;
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 5 !important;
+    display: block !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 1px !important;
+    border-radius: inherit;
+    pointer-events: none;
+    background: conic-gradient(from var(--border-glow-angle) at center, transparent 0%, rgba(255, 255, 255, calc(0.7 * var(--border-glow-intensity))) 6%, rgba(255, 255, 255, calc(1.0 * var(--border-glow-intensity))) 10%, rgba(255, 255, 255, calc(0.5 * var(--border-glow-intensity))) 18%, transparent 28%, transparent 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    opacity: calc((var(--border-glow-proximity) - var(--border-glow-sensitivity)) / (100 - var(--border-glow-sensitivity)));
+    transition: opacity 0.15s ease-out;
+}
+
+.has-border-glow:not(:hover):not(.border-glow-sweep-active) > .border-glow-effect {
+    opacity: 0;
+    transition: opacity 0.3s ease-out, visibility 0s linear 0.3s;
+    visibility: hidden;
+}
+
+/* --- Motion: upstream spring states --------------------------------------- */
+
+/* Transforms go on the host and filters on the layer: a filter or opacity on
+ * an ancestor would stop the layer sampling the page behind it. */
+#recent-posts .recent-post-item.lg-surface {
+    transition: transform 0.45s var(--lg-spring) !important;
+}
+
+#recent-posts .recent-post-item.lg-surface:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 38px rgba(15, 23, 42, 0.14), 0 3px 8px rgba(15, 23, 42, 0.08) !important;
+}
+
+#recent-posts .recent-post-item.lg-surface:hover > .lg-optical-layer {
+    filter: brightness(1.04);
+}
+
+/* --- Text and links ------------------------------------------------------- */
+
+#nav a,
+#nav .site-page,
+#nav #toggle-menu,
+#nav #blog-info,
+#nav .site-name,
+.site-data .headline,
+.site-data .length-num,
+.site-data a {
+    color: var(--lg-label) !important;
+}
+
+#article-container :is(h1, h2, h3, h4, h5, h6),
+.recent-post-info .article-title,
+#page-header #post-info .post-title,
+#page-header #site-title {
+    color: var(--lg-text-primary) !important;
+}
+
+.recent-post-info .article-meta-wrap,
+.recent-post-info .article-meta-wrap a,
+.recent-post-info .post-meta-date,
+#aside-content .article-meta,
+#aside-content .article-meta-wrap,
+#aside-content .article-meta-wrap time,
+#post-meta,
+#post-meta a,
+#post-meta span {
+    color: var(--lg-text-secondary) !important;
+}
+
+.recent-post-info .content,
+#aside-content .card-widget,
+#article-container {
+    color: var(--lg-text-primary);
+}
+
+.recent-post-info,
+#aside-content .card-widget,
+#article-container > :not(figure):not(pre):not(.table-wrap),
+#page-header #post-info,
+#page-header #page-site-info,
+.article-sort,
+#footer .footer-other {
+    text-shadow: var(--lg-text-shadow);
+}
+
+/* Links in prose carry an underline, not colour alone. */
+#article-container a:not(.headerlink):not(.fancybox):not(.flink-list-item a):not(.idouban-tab):not(.idouban-button) {
+    color: var(--lg-link-color) !important;
+    text-decoration: underline !important;
+    text-decoration-thickness: 1px !important;
+    text-underline-offset: 3px;
+    text-decoration-color: rgba(8, 102, 214, 0.35) !important;
+    transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+
+#article-container a:not(.headerlink):not(.fancybox):not(.flink-list-item a):not(.idouban-tab):not(.idouban-button):hover {
+    color: var(--lg-text-primary) !important;
+    text-decoration-color: currentColor !important;
+}
+
+#article-container a.headerlink::before {
+    color: var(--lg-accent-ink);
+}
+
+/* :where() keeps the ID inside :not() from outranking the rules below. */
+#aside-content .card-widget a:where(:not(#card-info-btn)) {
+    color: var(--lg-link-color) !important;
+}
+
+/* List titles are primary text in upstream GlassList/GlassCard. */
+#aside-content .card-widget .aside-list-item .content > .title,
+#aside-content .card-widget .aside-list a,
+#aside-content .card-widget .card-tag-cloud a,
+#aside-content .card-widget .card-category-list a,
+#aside-content .card-widget .card-archive-list a,
+#aside-content .card-widget .webinfo-item,
+#page .category-list-link,
+#page .tag-cloud-list a,
+.article-sort-item-title {
+    color: var(--lg-text-primary) !important;
+}
+
+#aside-content .card-widget .item-headline,
+#aside-content .card-widget .item-headline > span,
+#aside-content .card-widget .author-info-name {
+    color: var(--lg-text-primary) !important;
+}
+
+#aside-content .card-widget .item-headline > i {
+    color: var(--lg-accent-ink) !important;
+}
+
+#aside-content .card-widget .article-meta,
+#aside-content .card-widget .article-meta-wrap,
+#aside-content .card-widget .article-meta-wrap time,
+#aside-content .card-widget .aside-list-item .content > time,
+#aside-content .card-widget .aside-list-item .content > .name,
+#aside-content .card-widget .author-info-description,
+#aside-content .card-widget .card-category-list-count,
+#aside-content .card-widget .card-archive-list-count,
+#aside-content #card-toc .toc-percentage {
+    color: var(--lg-text-secondary) !important;
+}
+
+/* --- Sidebar (aside) ------------------------------------------------------ */
+
+#aside-content .card-widget .aside-list > .aside-list-item,
+#aside-content .card-widget .card-category-list-item > a,
+#aside-content .card-widget .card-archive-list-item > a {
+    background: transparent !important;
+}
+
+#aside-content .aside-list > .aside-list-item:not(:last-child) {
+    border-bottom: 1px solid var(--lg-separator-color) !important;
+}
+
+/* GlassList rows: white .06 hover, accent for the active row. */
+#aside-content .card-widget .card-category-list-item > a,
+#aside-content .card-widget .card-archive-list-item > a {
+    border-radius: 12px;
+    transition: background-color 0.2s var(--lg-spring);
+}
+
+#aside-content .card-widget .card-category-list-item > a:hover,
+#aside-content .card-widget .card-archive-list-item > a:hover {
+    background: rgba(0, 0, 0, 0.05) !important;
+}
+
+#aside-content .card-widget .card-category-list-item > a.active,
+#aside-content .card-widget .card-archive-list-item > a.active {
+    background: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* GlassChip, CSS-only: a lens per chip would cost a filter for ~6px of bend. */
+#aside-content .card-tag-cloud a {
+    display: inline-block;
+    margin: 3px 2px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    color: var(--lg-text-secondary) !important;
+    background: var(--lg-lite-bg);
+    box-shadow: var(--lg-lite-shadow);
+    transition: transform 0.25s var(--lg-spring), background-color 0.2s ease;
+}
+
+#aside-content .card-tag-cloud a:hover {
+    color: var(--lg-text-primary) !important;
+    background: rgba(255, 255, 255, 0.6);
+    transform: translateY(-1px);
+}
+
+/* Avatar as a glass ring around the photo (GlassAvatar). */
+#aside-content .card-info .avatar-img {
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.55), 0 0 0 4.5px rgba(255, 255, 255, 0.9), 0 8px 22px rgba(15, 23, 42, 0.12);
+}
+
+/* Prominent capsule (GlassButton prominent, in the Saul yellow). The theme's
+ * shimmer sweep and lift are replaced by the upstream spring. */
+#aside-content .card-info #card-info-btn {
+    border: 0.5px solid rgba(255, 255, 255, 0.8);
+    border-radius: 999px;
+    color: var(--lg-text-primary) !important;
+    background: rgba(255, 255, 255, 0.28) !important;
+    box-shadow:
+        inset 1.5px -1.5px 1px -1px rgba(255, 255, 255, 0.95),
+        inset -1.5px 1.5px 1px -1px rgba(255, 255, 255, 0.85),
+        inset 0 0 6px rgba(15, 23, 42, 0.06),
+        0 6px 16px rgba(15, 23, 42, 0.1) !important;
+    transition: transform 0.25s var(--lg-spring), background-color 0.2s ease !important;
+}
+
+#aside-content .card-info #card-info-btn::before {
+    content: none;
+}
+
+#aside-content .card-info #card-info-btn:hover {
+    background: rgba(255, 255, 255, 0.5) !important;
+    transform: translateY(-1px);
+}
+
+#aside-content .card-info #card-info-btn:active {
+    transform: scale(0.97);
+}
+
+#aside-content .card-info #card-info-btn i,
+#aside-content .card-info #card-info-btn span {
+    color: var(--lg-text-primary) !important;
+}
+
+/* --- Post header, page title and footer -------------------------------- */
+
+/* The post title sits on the gradient: a glass card keeps it legible.
+ * left/right + margin centre it without a transform, which the theme's
+ * header-effect keyframes would override. */
+#page-header #post-info {
+    right: 0;
+    left: 0;
+    width: min(1200px, calc(100% - 30px));
+    margin: 0 auto;
+    padding: 22px 28px;
+    border-radius: 28px;
+    box-sizing: border-box;
+}
+
+#page-header #post-info > :not(.lg-optical-layer):not(.border-glow-effect) {
+    max-width: none;
+    padding: 0;
+}
+
+#page-header #post-info .post-title {
+    margin-bottom: 6px;
+}
+
+#page-header #page-site-info {
+    right: 0;
+    left: 0;
+    width: max-content;
+    max-width: calc(100% - 30px);
+    margin: 0 auto;
+    padding: 14px 34px;
+    border-radius: 999px;
+    box-sizing: border-box;
+}
+
+#page-header #page-site-info #site-title {
+    margin: 0;
+}
+
+#footer {
+    padding: 0 15px 28px;
+}
+
+#footer .footer-other {
+    --lg-tint: var(--lg-surface-tint);
+    width: auto;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px 24px;
+    border-radius: 24px;
+    box-sizing: border-box;
+}
+
+#footer .footer-other,
+#footer .footer-other a {
+    color: var(--lg-text-secondary) !important;
+}
+
+#footer .footer-other a:hover {
+    color: var(--lg-text-primary) !important;
+}
+
+/* --- Right-side dock ---------------------------------------------------- */
+
+/* Opacity below 1 on #rightside would stop every lens inside it from
+ * sampling the page, so the theme's .8 becomes 1. */
+#rightside.rightside-show {
+    opacity: 1 !important;
+}
+
+#rightside > div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 5px;
+    border-radius: 999px;
+}
+
+#rightside > div + div {
+    margin-top: 8px;
+}
+
+#rightside #rightside-config-hide:not(.show):not(.status) {
+    padding: 0;
+}
+
+#rightside > div > button,
+#rightside > div > a {
+    width: 34px;
+    height: 34px;
+    margin: 0;
+    line-height: 34px;
+    border-radius: 50%;
+    color: var(--lg-label) !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible;
+    transition: transform 0.3s var(--lg-spring), background-color 0.2s ease !important;
+}
+
+#rightside > div > button::before,
+#rightside > div > a::before {
+    content: none;
+}
+
+#rightside > div > button:hover,
+#rightside > div > a:hover {
+    background: rgba(0, 0, 0, 0.06) !important;
+    box-shadow: none !important;
+    transform: scale(1.14);
+}
+
+#rightside.lg-on-light > div > button:hover,
+#rightside > div.lg-on-light > button:hover {
+    background: rgba(0, 0, 0, 0.08) !important;
+}
+
+#rightside > div > button:active,
+#rightside > div > a:active {
+    transform: scale(0.9);
+}
+
+#rightside > div > button i,
+#rightside > div > a i {
+    color: inherit;
+}
+
+/* --- APlayer (GlassMusicPlayer) --------------------------------------- */
+
+#aplayer.aplayer.aplayer-fixed {
+    left: 12px;
+    bottom: 12px;
+}
+
+#aplayer.aplayer-fixed .aplayer-body {
+    left: 12px;
+    bottom: 12px;
+    border-radius: 20px;
+    overflow: hidden;
+    color: var(--lg-label);
+}
+
+#aplayer.aplayer-fixed .aplayer-body .aplayer-pic {
+    border-radius: 20px 0 0 20px;
+}
+
+#aplayer.aplayer-fixed .aplayer-list {
+    margin-bottom: 74px;
+    border: 0.5px solid var(--lg-border-color) !important;
+    border-radius: 18px;
+    overflow: hidden;
+    color: var(--lg-text-primary) !important;
+    background: var(--lg-modal-tint) !important;
+    box-shadow: var(--lgos-drop);
+    -webkit-backdrop-filter: blur(18px) saturate(1.5);
+    backdrop-filter: blur(18px) saturate(1.5);
+}
+
+#aplayer .aplayer-info {
+    border-color: transparent !important;
+}
+
+#aplayer .aplayer-info .aplayer-music .aplayer-title {
+    color: var(--lg-label) !important;
+    font-weight: 600;
+}
+
+#aplayer .aplayer-info .aplayer-music .aplayer-author,
+#aplayer .aplayer-time,
+#aplayer .aplayer-time span {
+    color: var(--lg-label-secondary) !important;
+}
+
+#aplayer .aplayer-body .aplayer-icon path {
+    fill: var(--lg-label-secondary);
+}
+
+#aplayer .aplayer-list ol li,
+#aplayer .aplayer-list ol li .aplayer-list-title {
+    color: var(--lg-text-primary) !important;
+    border-color: var(--lg-separator-color) !important;
+}
+
+#aplayer .aplayer-list ol li .aplayer-list-author,
+#aplayer .aplayer-list ol li .aplayer-list-index {
+    color: var(--lg-text-secondary) !important;
+}
+
+#aplayer .aplayer-list ol li:hover,
+#aplayer .aplayer-list ol li.aplayer-list-light {
+    background: rgba(0, 0, 0, 0.05) !important;
+}
+
+#aplayer .aplayer-pic {
+    background-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+#aplayer .aplayer-bar-wrap .aplayer-bar .aplayer-played,
+#aplayer .aplayer-bar-wrap .aplayer-bar .aplayer-played .aplayer-thumb,
+#aplayer .aplayer-volume-wrap .aplayer-volume {
+    background: rgba(29, 29, 31, 0.55) !important;
+}
+
+#aplayer .aplayer-miniswitcher {
+    background: transparent !important;
+    border-left: 0.5px solid var(--lg-separator-color);
+}
+
+#aplayer .aplayer-bar-wrap .aplayer-bar {
+    background: rgba(0, 0, 0, 0.12) !important;
+}
+
+#aplayer.lg-on-light .aplayer-bar-wrap .aplayer-bar,
+#aplayer .aplayer-body.lg-on-light .aplayer-bar-wrap .aplayer-bar {
+    background: rgba(0, 0, 0, 0.15) !important;
+}
+
+/* --- Mobile drawer ------------------------------------------------------ */
+
+#sidebar #menu-mask {
+    background: var(--lg-overlay-tint);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+
+/* The drawer covers article text, so it is frosted as well as refracting. */
+#sidebar #sidebar-menus.lg-surface {
+    --lg-tint: rgba(250, 251, 253, 0.72);
+}
+
+#sidebar #sidebar-menus.lg-surface.is-glass > .lg-optical-layer {
+    -webkit-backdrop-filter: blur(14px) var(--lg-filter) !important;
+    backdrop-filter: blur(14px) var(--lg-filter) !important;
+}
+
+#sidebar #sidebar-menus.lg-surface.is-fallback > .lg-optical-layer {
+    -webkit-backdrop-filter: blur(18px) saturate(1.5) !important;
+    backdrop-filter: blur(18px) saturate(1.5) !important;
+}
+
+#sidebar #sidebar-menus .menus_items {
+    background: var(--lg-muted-tint);
+    box-shadow: none;
+}
+
+#sidebar #sidebar-menus .site-data .headline,
+#sidebar #sidebar-menus .site-data .length-num,
+#sidebar #sidebar-menus .menus_items .site-page {
+    color: var(--lg-text-primary) !important;
+}
+
+/* --- Post body ------------------------------------------------------------ */
+
+#article-container blockquote {
+    border: 0.5px solid var(--lg-border-color);
+    border-left: 3px solid rgba(255, 255, 255, 0.95);
+    border-radius: 14px;
+    color: var(--lg-text-secondary);
+    background: rgba(255, 255, 255, 0.4);
+    box-shadow: var(--lg-lite-shadow);
+}
+
+/* GlassDivider. */
+#article-container hr {
+    height: 0.5px;
+    margin: 32px 0;
+    border: 0;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+#article-container hr::before {
+    content: none;
+}
+
+/* GlassTable. */
+#article-container .table-wrap {
+    border: 0.5px solid var(--lg-border-color);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.36);
+    box-shadow: var(--lg-lite-shadow);
+}
+
+#article-container .table-wrap table {
+    border: 0;
+    border-collapse: collapse;
+}
+
+#article-container .table-wrap th,
+#article-container .table-wrap td {
+    border: 0;
+    border-bottom: 0.5px solid var(--lg-separator-color);
+}
+
+#article-container .table-wrap th {
+    color: var(--lg-text-secondary);
+    background: rgba(255, 255, 255, 0.45);
+    border-bottom-color: var(--lg-border-color);
+}
+
+#article-container .table-wrap tr:last-child td {
+    border-bottom: 0;
+}
+
+#article-container .table-wrap tbody tr:hover td {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* GlassCodeBlock: a darker nested glass with a hairline and rims. */
+#article-container figure.highlight {
+    border: 0.5px solid var(--lg-border-color);
+    border-radius: 18px !important;
+    color: #dce7f7;
+    background: rgba(26, 28, 44, 0.9) !important;
+    box-shadow: var(--lg-lite-shadow) !important;
+}
+
+#article-container figure.highlight pre,
+#article-container figure.highlight table,
+#article-container figure.highlight .gutter,
+#article-container figure.highlight .code,
+#article-container pre code {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+#article-container figure.highlight .highlight-tools {
+    border-bottom: 0.5px solid var(--lg-separator-color);
+    color: var(--lg-text-tertiary);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+#article-container figure.highlight .highlight-tools .macStyle > div:nth-child(1) { background: #ff5f57; }
+#article-container figure.highlight .highlight-tools .macStyle > div:nth-child(2) { background: #febc2e; }
+#article-container figure.highlight .highlight-tools .macStyle > div:nth-child(3) { background: #28c840; }
+
+#article-container figure.highlight .gutter pre {
+    border-right: 0.5px solid var(--lg-separator-color);
+}
+
+#article-container pre:not(figure.highlight pre) {
+    border: 0.5px solid var(--lg-border-color);
+    border-radius: 14px;
+    background: rgba(26, 28, 44, 0.9) !important;
+}
+
+#article-container :not(pre) > code {
+    padding: 0.1em 0.4em;
+    border-radius: 6px;
+    color: #b4235a;
+    background: rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Code copy feedback as a GlassTooltip. */
+.copy-notice {
+    padding: 6px 12px;
+    border: 0.5px solid var(--lg-border-color);
+    border-radius: 10px;
+    color: var(--lg-text-primary);
+    background: var(--lg-modal-tint);
+    box-shadow: var(--lg-material-shadow);
+    font-size: 13px;
+    -webkit-backdrop-filter: blur(8px) saturate(1.6);
+    backdrop-filter: blur(8px) saturate(1.6);
+}
+
+/* Copyright, tags and previous/next post: lite glass inside the post lens. */
+#post .post-copyright {
+    border: 0.5px solid var(--lg-border-color);
+    border-radius: 18px;
+    background: var(--lg-lite-bg);
+    box-shadow: var(--lg-lite-shadow);
+    transition: box-shadow 0.3s ease;
+}
+
+#post .post-copyright:hover {
+    box-shadow: var(--lg-lite-shadow), 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+}
+
+#post .post-copyright::before,
+#post .post-copyright .post-copyright-meta {
+    color: var(--lg-accent-ink) !important;
+}
+
+#post .post-copyright .post-copyright-info,
+#post .post-copyright .post-copyright-info a {
+    color: var(--lg-text-secondary) !important;
+}
+
+#post .tag_share .post-meta__tags {
+    padding: 2px 14px;
+    border: 0.5px solid var(--lg-border-color);
+    border-radius: 999px;
+    color: var(--lg-text-secondary) !important;
+    background: var(--lg-lite-bg);
+    box-shadow: var(--lg-lite-shadow);
+    transition: transform 0.25s var(--lg-spring), background-color 0.25s ease, color 0.25s ease;
+}
+
+#post .tag_share .post-meta__tags:hover {
+    color: var(--lg-text-primary) !important;
+    background: rgba(255, 255, 255, 0.6);
+    transform: translateY(-1px);
+}
+
+#post .tag_share .post-meta__tags:active {
+    transform: scale(0.97);
+}
+
+#pagination.pagination-post,
+.relatedPosts > .relatedPosts-list > a {
+    border-radius: 20px;
+}
+
+#pagination .pagination-related,
+.relatedPosts .pagination-related {
+    background: var(--lg-lite-bg) !important;
+    box-shadow: var(--lg-lite-shadow);
+}
+
+#pagination .pagination-related:hover,
+.relatedPosts .pagination-related:hover {
+    background: rgba(255, 255, 255, 0.6) !important;
+}
+
+#pagination .pagination-related .info-1 .info-item-1,
+#pagination .pagination-related .info-2 .info-item-1 {
+    color: var(--lg-text-secondary) !important;
+}
+
+#pagination .pagination-related .info-1 .info-item-2,
+#pagination .pagination-related .info-2 .info-item-2 {
+    color: var(--lg-text-primary) !important;
+}
+
+/* GlassPagination for list pages. */
+.layout .pagination > :not(.space) {
+    border-radius: 10px;
+    color: var(--lg-text-secondary) !important;
+    background: var(--lg-lite-bg) !important;
+    box-shadow: var(--lg-lite-shadow) !important;
+    transition: transform 0.2s var(--lg-spring), background-color 0.2s ease !important;
+}
+
+.layout .pagination > :not(.space):hover {
+    color: var(--lg-text-primary) !important;
+    background: rgba(255, 255, 255, 0.65) !important;
+    transform: translateY(-1px);
+}
+
+.layout .pagination > .current {
+    color: #1a1a1a !important;
+    background: rgba(255, 255, 255, 0.72) !important;
+    box-shadow: var(--lg-lite-shadow), 0 2px 8px rgba(15, 23, 42, 0.1) !important;
+}
+
+/* --- Archives, tags, categories (GlassTimeline / GlassTag) ------------- */
+
+#archive .article-sort,
+#tag .article-sort,
+#category .article-sort {
+    border-left-color: rgba(0, 0, 0, 0.12);
+}
+
+.article-sort-title::before,
+.article-sort-item::before {
+    border-color: rgba(255, 255, 255, 0.95) !important;
+    background: #fff !important;
+    box-shadow: 0 0 0 0.5px rgba(15, 23, 42, 0.14), 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+.article-sort-item.year {
+    color: var(--lg-text-primary);
+    font-weight: 600;
+}
+
+.article-sort-item-time,
+.article-sort-item-time time {
+    color: var(--lg-text-tertiary) !important;
+    font-variant-numeric: tabular-nums;
+}
+
+.article-sort-item-title {
+    font-weight: 600;
+    transition: transform 0.3s var(--lg-spring), color 0.2s ease !important;
+}
+
+.article-sort-item-title:hover {
+    color: var(--lg-accent-ink) !important;
+}
+
+/* Theme tags keep their random hue, darkened under a glass film. */
+#page .tag-cloud-list a {
+    margin: 4px 5px;
+    padding: 2px 12px;
+    border: 0.5px solid rgba(255, 255, 255, 0.8);
+    border-radius: 999px;
+    color: var(--lg-text-primary) !important;
+    background-image: linear-gradient(rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.62)) !important;
+    box-shadow: var(--lg-lite-shadow);
+    transition: transform 0.25s var(--lg-spring), box-shadow 0.25s ease !important;
+}
+
+#page .tag-cloud-list a::before {
+    content: none;
+}
+
+#page .tag-cloud-list a:hover {
+    background-image: linear-gradient(rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.4)) !important;
+    box-shadow: var(--lg-lite-shadow), 0 6px 16px rgba(15, 23, 42, 0.12);
+    transform: translateY(-2px) scale(1.04);
+}
+
+#page .category-lists .category-list .category-list-item::before {
+    border-color: var(--lg-accent-ink);
+}
+
+#page .category-lists .category-list .category-list-count {
+    color: var(--lg-text-tertiary);
+}
+
+/* Friend links. */
+#article-container .flink .flink-list > .flink-list-item {
+    border: 0.5px solid var(--lg-border-color);
+    border-radius: 18px;
+    background: var(--lg-lite-bg);
+    box-shadow: var(--lg-lite-shadow);
+    transition: transform 0.3s var(--lg-spring);
+}
+
+#article-container .flink .flink-list > .flink-list-item:hover {
+    transform: translateY(-2px);
+}
+
+#article-container .flink .flink-list > .flink-list-item .flink-item-name {
+    color: var(--lg-text-primary) !important;
+}
+
+#article-container .flink .flink-list > .flink-list-item .flink-item-desc {
+    color: var(--lg-text-secondary) !important;
+}
+
+/* Douban movies and books (rendered client-side by idouban). */
+#idouban .idouban-item {
+    border-bottom: 0.5px solid var(--lg-separator-color) !important;
+}
+
+#idouban .idouban-item .idouban-meta,
+#idouban .idouban-item .idouban-comment {
+    color: var(--lg-text-secondary) !important;
+}
+
+#idouban .idouban-tabs a.idouban-tab,
+#idouban .idouban-pagination a.idouban-button {
+    border: 0.5px solid var(--lg-border-color);
+    border-radius: 999px;
+    color: var(--lg-text-secondary) !important;
+    background: var(--lg-lite-bg) !important;
+    box-shadow: var(--lg-lite-shadow);
+    text-decoration: none !important;
+}
+
+#idouban .idouban-pagination a.idouban-button:hover {
+    color: #1a1a1a !important;
+    background: rgba(255, 255, 255, 0.72) !important;
+    box-shadow: var(--lg-lite-shadow), 0 2px 8px rgba(15, 23, 42, 0.1) !important;
+}
+
+#idouban .idouban-picture img {
+    border-radius: 10px;
+}
+
+/* --- Focus, reading mode and accessibility ------------------------------ */
+
+.lg-surface a:focus-visible,
+.lg-surface button:focus-visible,
+#rightside button:focus-visible,
+.search-dialog input:focus-visible {
+    outline: 2px solid rgba(10, 132, 255, 0.8);
+    outline-offset: 2px;
+}
+
+.read-mode {
+    background: #f5f7fa !important;
+    --font-color: #1d1d1f;
+    --readmode-light-color: #f5f7fa;
+}
+
+.read-mode #post,
+.read-mode .layout > div#post {
+    background: #f5f7fa !important;
+    box-shadow: none !important;
+}
+
+.read-mode #post > .lg-optical-layer,
+.read-mode #post > .border-glow-effect {
+    visibility: hidden;
+}
+
+@media (max-width: 768px) {
+    #page-header #post-info {
+        width: calc(100% - 20px);
+        padding: 16px 18px;
+        border-radius: 22px;
+    }
+
+    #footer {
+        padding: 0 10px 20px;
+    }
+
+    #aplayer.aplayer.aplayer-fixed,
+    #aplayer.aplayer-fixed .aplayer-body {
+        left: 8px;
+        bottom: calc(8px + env(safe-area-inset-bottom));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #web_bg::before {
+        animation: none !important;
+        transform: none;
+    }
+
+    .lg-surface,
+    .lg-optical-layer,
+    .border-glow-effect,
+    #rightside > div > button,
+    .saul-title,
+    .scroll-indicator {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    #recent-posts .recent-post-item.lg-surface:hover,
+    #rightside > div > button:hover {
+        transform: none;
+    }
+}
+
+@media (forced-colors: active) {
+    body,
+    .lg-surface,
+    #nav.lg-surface,
+    #aside-content .card-widget.lg-surface,
+    .layout > div.lg-surface:first-child:not(#recent-posts),
+    #sidebar #sidebar-menus,
+    .search-dialog {
+        background: Canvas !important;
+        color: CanvasText !important;
+    }
+
+    .lg-surface > .lg-optical-layer,
+    .lg-surface.is-glass > .lg-optical-layer,
+    .lg-surface.is-fallback > .lg-optical-layer {
+        background: Canvas !important;
+        border-color: CanvasText;
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+        box-shadow: none !important;
+    }
+
+    #web_bg,
+    .border-glow-effect,
+    .lg-optical-layer::before,
+    .lg-optical-layer::after {
+        visibility: hidden;
+    }
+
+    .lg-surface a,
+    #nav a,
+    #article-container a,
+    #aside-content .card-widget a {
+        color: LinkText !important;
+    }
+}

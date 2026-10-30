@@ -1,0 +1,54 @@
+/* ──── BorderGlow 效果:边框反光 ──── */
+
+.has-border-glow {
+  --border-glow-proximity: 0;
+  --border-glow-angle: 45deg;
+  --border-glow-sensitivity: 40;
+  --border-glow-intensity: 1;
+
+  position: relative;
+}
+
+/* 边框反光:使用独立子元素承载，避免伪元素冲突 */
+.border-glow-effect {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 5;
+  padding: 1px;
+  background:
+    conic-gradient(
+      from var(--border-glow-angle) at center,
+      transparent 0%,
+      rgba(255, 255, 255, calc(0.7 * var(--border-glow-intensity))) 6%,
+      rgba(255, 255, 255, calc(1.0 * var(--border-glow-intensity))) 10%,
+      rgba(255, 255, 255, calc(0.5 * var(--border-glow-intensity))) 18%,
+      transparent 28%,
+      transparent 100%
+    );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: calc((var(--border-glow-proximity) - var(--border-glow-sensitivity)) / (100 - var(--border-glow-sensitivity)));
+  transition: opacity 0.15s ease-out;
+  will-change: opacity;
+}
+
+/* 非 hover 时隐藏效果 */
+.has-border-glow:not(:hover):not(.border-glow-sweep-active) .border-glow-effect {
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+
+/* ──── 减少动效 ──── */
+@media (prefers-reduced-motion: reduce) {
+  .has-border-glow::after {
+    transition: none !important;
+  }
+}
