@@ -321,34 +321,34 @@ article,
 }
 
 /* WebKit (Safari and every iPhone browser) cannot use an SVG filter as a
- * backdrop, so the nav imitates the lens with what it has: a clear centre
- * and a soft bezel band where what passes under the rim is smeared, lit and
- * saturated, as the SVG bezel does. The band sits on ::before (the LGOS ring
- * is dropped here); the layer itself has no backdrop filter, or it would
- * become the band's backdrop root and the band would see only the tint. */
+ * backdrop, and backdrop filters on the layer's pseudo-elements see only the
+ * layer. So the nav is iOS-style glass on the layer itself: a light frost
+ * that keeps the title legible over passing text, a thick bevel of inner
+ * light along the rim, and a top sheen. */
 .lg-surface.is-fallback[data-lg-kind='nav'] > .lg-optical-layer {
-    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 45%);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+    --lg-tint: rgba(255, 255, 255, 0.16);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, 0.12) 100%);
+    -webkit-backdrop-filter: blur(10px) saturate(1.9) brightness(1.06);
+    backdrop-filter: blur(10px) saturate(1.9) brightness(1.06);
+    box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.95),
+        inset 0 -1px 1px rgba(255, 255, 255, 0.55),
+        inset 0 0 0 0.5px rgba(255, 255, 255, 0.6),
+        inset 0 0 16px rgba(255, 255, 255, 0.5),
+        inset 0 -12px 18px -14px rgba(15, 23, 42, 0.16),
+        var(--lgos-drop);
 }
 
 .lg-surface.is-fallback[data-lg-kind='nav'] > .lg-optical-layer::before {
-    inset: 0;
-    top: 0;
-    left: 0;
-    width: auto;
-    height: auto;
-    border: 0;
-    transform: none;
-    filter: none;
-    -webkit-backdrop-filter: blur(3px) saturate(1.9) brightness(1.12);
-    backdrop-filter: blur(3px) saturate(1.9) brightness(1.12);
-    -webkit-mask:
-        linear-gradient(to bottom, #000, transparent 18px, transparent calc(100% - 18px), #000),
-        linear-gradient(to right, #000, transparent 28px, transparent calc(100% - 28px), #000);
-    mask:
-        linear-gradient(to bottom, #000, transparent 18px, transparent calc(100% - 18px), #000),
-        linear-gradient(to right, #000, transparent 28px, transparent calc(100% - 28px), #000);
+    content: none;
+}
+
+/* A resting selection pill sits above its label: frost would blur the label
+ * it marks, so the fallback bead is a clear, lit film. */
+.lg-surface.is-fallback[data-lg-kind='pill'] > .lg-optical-layer {
+    --lg-tint: rgba(255, 255, 255, 0.32);
+    -webkit-backdrop-filter: saturate(1.5) brightness(1.05);
+    backdrop-filter: saturate(1.5) brightness(1.05);
 }
 
 /* Reading slabs (#post, #page, #archive...): clear glass, no frost. */
@@ -937,24 +937,30 @@ article,
     backdrop-filter: blur(6px);
 }
 
-/* The drawer covers article text, so it is frosted as well as refracting. */
+/* The drawer is see-through glass: the page shows through it, softened just
+ * enough that its text does not fight the menu labels. */
 #sidebar #sidebar-menus.lg-surface {
-    --lg-tint: rgba(250, 251, 253, 0.72);
+    --lg-tint: rgba(255, 255, 255, 0.14);
 }
 
 #sidebar #sidebar-menus.lg-surface.is-glass > .lg-optical-layer {
-    -webkit-backdrop-filter: blur(14px) var(--lg-filter) !important;
-    backdrop-filter: blur(14px) var(--lg-filter) !important;
+    -webkit-backdrop-filter: blur(6px) var(--lg-filter) !important;
+    backdrop-filter: blur(6px) var(--lg-filter) !important;
 }
 
 #sidebar #sidebar-menus.lg-surface.is-fallback > .lg-optical-layer {
-    -webkit-backdrop-filter: blur(18px) saturate(1.5) !important;
-    backdrop-filter: blur(18px) saturate(1.5) !important;
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 40%);
+    -webkit-backdrop-filter: blur(8px) saturate(1.8) brightness(1.04) !important;
+    backdrop-filter: blur(8px) saturate(1.8) brightness(1.04) !important;
+    box-shadow:
+        inset 1px 0 1px rgba(255, 255, 255, 0.9),
+        inset 0 0 24px rgba(255, 255, 255, 0.35),
+        var(--lgos-drop);
 }
 
 #sidebar #sidebar-menus .menus_items {
-    background: var(--lg-muted-tint);
-    box-shadow: none;
+    background: rgba(255, 255, 255, 0.16);
+    box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.8);
 }
 
 #sidebar #sidebar-menus .site-data .headline,
