@@ -35,7 +35,9 @@ if (root.dataset.liquidGlass !== 'upstream') {
       bezelWidth: 10, glassThickness: 64, refractionScale: 1.1, blur: 0, saturate: 1.12,
       magnify: { x: 1.16, y: 1.22 }, dispersion: 0.1, specular: 1.6
     },
-    nav: { ...glassPresets.card, refractionScale: 1, magnify: { x: 1, y: 1.5 } },
+    // The approved nav (2026-10-29): rim refraction only. A later 1.5x
+    // vertical magnification over-stretched the text passing under it.
+    nav: { ...glassPresets.card, refractionScale: 1 },
     // Dock.tsx and GlassMusicPlayer.tsx; bezels are clamped to these radii.
     dock: { bezelWidth: 14, glassThickness: 90, refractionScale: 1, blur: 0.2, saturate: 1.2 },
     player: { bezelWidth: 30, glassThickness: 130, refractionScale: 1.1, blur: 0.2 },
