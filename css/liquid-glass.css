@@ -338,24 +338,22 @@ article,
     visibility: hidden;
     -webkit-clip-path: inset(0 round var(--lg-mirror-radius, 999px));
     clip-path: inset(0 round var(--lg-mirror-radius, 999px));
-    filter: var(--lg-mirror-filter);
+    /* The lens (displacement only), then the colour lift the full SVG chain
+     * gives the computer nav, as a cheap CSS step. */
+    filter: var(--lg-mirror-filter) saturate(1.3);
 }
 
 #nav > .lg-nav-mirror.is-ready {
     visibility: visible;
 }
 
-/* Over the mirror the nav wears the computer nav's clear glass: no frost,
- * the damped rims the SVG specular sits with. */
+/* Over the mirror the nav is clear glass with no frost. The mirror's lens is
+ * the displacement pass alone, so the rim light is the material's full LGOS
+ * rims (the base rule) rather than an SVG specular. */
 #nav.lg-mirrored.lg-surface.is-fallback > .lg-optical-layer {
     background-image: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-    box-shadow:
-        inset 1.5px -1.5px 1px -1px color-mix(in srgb, var(--lgos-rim-bl) 60%, transparent),
-        inset -1.5px 1.5px 1px -1px color-mix(in srgb, var(--lgos-rim-tr) 60%, transparent),
-        inset 0 0 var(--lgos-shade-blur) var(--lgos-shade),
-        var(--lgos-drop);
 }
 
 @media (hover: none) and (pointer: coarse) {

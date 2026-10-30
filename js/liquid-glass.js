@@ -461,32 +461,47 @@ if (root.dataset.liquidGlass !== 'upstream') {
 
   // --- Nav mirror (WebKit) -------------------------------------------------
   // WebKit cannot use an SVG filter as a backdrop, but it can filter an
-  // element's own content. So on that path the nav refracts a mirror: a copy
-  // of the page (in a shadow root, so ids and document queries stay unique),
-  // kept in register with the real page as it scrolls, clipped to the nav and
-  // run through the nav's own lens filter.
+  // element's own content. So on phones without SVG backdrops the nav
+  // refracts a mirror: a copy of the page (in a shadow root, so ids and
+  // document queries stay unique), kept in register with the real page as it
+  // scrolls, clipped to the nav and run through the nav's lens.
+  //
+  // WebKit runs that filter in software on every scroll frame, so the mirror
+  // is kept as cheap as it can be: the lens is the displacement pass alone
+  // (the rim light is the CSS material's), the copy is moved by a transform,
+  // and nothing inside it animates, blurs or blends. A full rebuild clones the
+  // page, so it never runs mid-scroll; lazy images are synced in place.
   const XLINK = 'http://www.w3.org/1999/xlink';
   const MIRROR_BLANK = 'iframe, video, audio, canvas, embed, object';
   const MIRROR_STRIP = '#nav, #rightside, #sidebar, .search-dialog, #search-mask, script, noscript';
+  // Every effect inside the copy would be re-rendered inside the software
+  // filter each frame; under a 60px lens they are not visible anyway.
+  const MIRROR_CALM = `*, *::before, *::after {
+    animation: none !important; transition: none !important; filter: none !important;
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+    mix-blend-mode: normal !important; will-change: auto !important;
+  }
+  .lg-optical-layer::before, .border-glow-effect, .saul-noise { display: none !important; }`;
+  // What scrolls under the nav: the poster and the page.
+  const MIRROR_SOURCES = ['saul-intro', 'body-wrap'];
+  const MIRROR_QUIET = 800; // ms after the last scroll before a rebuild may run
   let mirror = null;
   let mirrorTimer = 0;
   let mirrorObserver = null;
-
-  // What scrolls under the nav: the poster (home page only) and the page.
-  const MIRROR_SOURCES = ['saul-intro', 'body-wrap'];
+  let lastScroll = 0;
 
   function placeMirror() {
     if (!mirror?.copies) return;
     const nav = mirror.host.parentElement;
     if (!nav) return;
     const n = nav.getBoundingClientRect();
-    // Offsets rather than a transform, so the copy never gets a compositing
-    // layer of its own inside WebKit's (software) filter.
     mirror.copies.forEach(({ original, copy }) => {
       const p = original.getBoundingClientRect();
-      copy.style.setProperty('left', `${p.left - n.left}px`, 'important');
-      copy.style.setProperty('top', `${p.top - n.top}px`, 'important');
+      copy.style.transform = `translate(${p.left - n.left}px, ${p.top - n.top}px)`;
     });
+    const view = `${-n.left}:${-n.top}:${innerWidth}:${innerHeight}`;
+    if (mirror.view === view) return;
+    mirror.view = view;
     mirror.backdrop.style.setProperty('left', `${-n.left}px`, 'important');
     mirror.backdrop.style.setProperty('top', `${-n.top}px`, 'important');
     mirror.backdrop.style.setProperty('width', `${innerWidth}px`, 'important');
@@ -504,14 +519,16 @@ if (root.dataset.liquidGlass !== 'upstream') {
     // The page's own stylesheets (cached), so the copy lays out as the page.
     const sheets = Array.from(document.head.querySelectorAll('link[rel="stylesheet"], style'))
       .map(node => node.cloneNode(true));
-    root.append(...sheets);
+    const calm = document.createElement('style');
+    calm.textContent = MIRROR_CALM;
+    root.append(...sheets, calm);
     const loaded = Promise.all(sheets.filter(sheet => sheet.tagName === 'LINK')
       .map(link => new Promise(done => { link.onload = link.onerror = done; })));
     const layer = nav.querySelector(':scope > .lg-optical-layer');
     if (layer) layer.after(host);
     else nav.prepend(host);
     nav.classList.add('lg-mirrored');
-    mirror = { host, root, loaded, key: '', mapImages: [], filter: null, shell: null, copies: null, backdrop: null };
+    mirror = { host, root, loaded, key: '', view: '', mapImages: [], filter: null, shell: null, copies: null, backdrop: null };
     return mirror;
   }
 
@@ -519,11 +536,10 @@ if (root.dataset.liquidGlass !== 'upstream') {
     // Embeds would load twice and canvases copy blank: keep their boxes only.
     const blanks = Array.from(original.querySelectorAll(MIRROR_BLANK));
     const copy = original.cloneNode(true);
-    // Element pairs, taken before anything is stripped, to phase-lock
-    // animations (the poster's floating title) to the originals.
-    const twins = new Map();
-    const copies = [copy, ...copy.querySelectorAll('*')];
-    [original, ...original.querySelectorAll('*')].forEach((element, i) => twins.set(element, copies[i]));
+    // Image pairs, so lazy loading can be mirrored without a rebuild.
+    const media = new Map();
+    const copied = copy.querySelectorAll('img, source');
+    original.querySelectorAll('img, source').forEach((element, i) => media.set(element, copied[i]));
     copy.querySelectorAll(MIRROR_BLANK).forEach((node, i) => {
       const box = document.createElement('div');
       const source = blanks[i];
@@ -533,23 +549,12 @@ if (root.dataset.liquidGlass !== 'upstream') {
     });
     copy.querySelectorAll(MIRROR_STRIP).forEach(node => node.remove());
     copy.style.setProperty('position', 'absolute', 'important');
+    copy.style.setProperty('left', '0', 'important');
+    copy.style.setProperty('top', '0', 'important');
     copy.style.setProperty('margin', '0', 'important');
     copy.style.setProperty('width', `${original.offsetWidth}px`, 'important');
     copy.style.setProperty('height', `${original.offsetHeight}px`, 'important');
-    return { original, copy, twins };
-  }
-
-  // A copied CSS animation starts from zero; give it the original's clock.
-  function syncMirrorAnimations({ original, twins }) {
-    if (!original.getAnimations) return;
-    original.getAnimations({ subtree: true }).forEach(animation => {
-      const effect = animation.effect;
-      const twin = effect?.target && twins.get(effect.target);
-      if (!twin || !animation.animationName || !twin.isConnected) return;
-      const match = twin.getAnimations().find(candidate => candidate.animationName === animation.animationName &&
-        (candidate.effect?.pseudoElement || null) === (effect.pseudoElement || null));
-      if (match && animation.currentTime != null) match.currentTime = animation.currentTime;
-    });
+    return { original, copy, media };
   }
 
   function buildMirror() {
@@ -574,7 +579,7 @@ if (root.dataset.liquidGlass !== 'upstream') {
     shell.append(backdrop, ...copies.map(entry => entry.copy));
     state.shell?.remove();
     state.root.append(shell);
-    Object.assign(state, { shell, copies, backdrop });
+    Object.assign(state, { shell, copies, backdrop, view: '' });
 
     const width = nav.offsetWidth;
     const height = nav.offsetHeight;
@@ -583,11 +588,11 @@ if (root.dataset.liquidGlass !== 'upstream') {
     const key = `${width}x${height}:${radius.toFixed(1)}`;
     if (width > 1 && height > 1 && state.key !== key) {
       state.filter?.remove();
-      state.mapImages?.forEach(image => image.remove());
+      state.mapImages.forEach(image => image.remove());
       state.mapImages = [];
-      const optics = KINDS.nav;
-      const maps = mapsFor(width, height, radius, optics, DEFAULT_ANGLE);
-      const filter = createFilter(`lg-mirror-${++sequence}`, maps, optics, optics.magnify);
+      // The nav's full-size map, through the lean chain (displacement only).
+      const maps = mapsFor(width, height, radius, KINDS.nav, DEFAULT_ANGLE);
+      const filter = createFilter(`lg-mirror-${++sequence}`, maps, { ...KINDS.nav, lean: true });
       // The lens only pulls inward, so the input never needs to reach past
       // the nav: the smallest region keeps WebKit's software filter cheap.
       filter.setAttribute('x', '0');
@@ -621,22 +626,40 @@ if (root.dataset.liquidGlass !== 'upstream') {
     }
     placeMirror();
     state.loaded.then(() => {
-      if (state.copies !== copies) return; // rebuilt meanwhile
-      copies.forEach(syncMirrorAnimations);
-      copies.forEach(entry => { entry.twins = null; });
-      state.host.classList.add('is-ready');
+      if (state.copies === copies) state.host.classList.add('is-ready');
     });
   }
 
+  // A rebuild clones the whole page: wait until scrolling has been quiet.
   function scheduleMirror(delay = 600) {
     clearTimeout(mirrorTimer);
-    mirrorTimer = setTimeout(buildMirror, delay);
+    mirrorTimer = setTimeout(() => {
+      const quiet = performance.now() - lastScroll;
+      if (quiet < MIRROR_QUIET) scheduleMirror(MIRROR_QUIET - quiet);
+      else buildMirror();
+    }, delay);
   }
 
-  // Rebuild when the page's content changes (Douban lists, lazy images, a
-  // pjax swap); engine bookkeeping such as classes and glow styles is ignored.
+  // Lazy images are copied across in place; other content changes (Douban
+  // lists, a pjax swap) rebuild. Engine bookkeeping (classes, glow) is ignored.
+  function onMirrorMutations(records) {
+    let rebuild = false;
+    for (const record of records) {
+      if (record.type !== 'attributes') {
+        rebuild = true;
+        continue;
+      }
+      const twin = mirror?.copies?.map(entry => entry.media.get(record.target)).find(Boolean);
+      if (!twin) continue;
+      const value = record.target.getAttribute(record.attributeName);
+      if (value == null) twin.removeAttribute(record.attributeName);
+      else twin.setAttribute(record.attributeName, value);
+    }
+    if (rebuild) scheduleMirror();
+  }
+
   function watchMirror() {
-    mirrorObserver ??= new MutationObserver(() => scheduleMirror());
+    mirrorObserver ??= new MutationObserver(onMirrorMutations);
     mirrorObserver.disconnect();
     MIRROR_SOURCES.map(id => document.getElementById(id)).filter(Boolean).forEach(source => mirrorObserver.observe(source, {
       childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['src', 'srcset']
@@ -646,7 +669,10 @@ if (root.dataset.liquidGlass !== 'upstream') {
   function startMirror() {
     buildMirror();
     watchMirror();
-    window.addEventListener('scroll', placeMirror, { passive: true });
+    window.addEventListener('scroll', () => {
+      lastScroll = performance.now();
+      placeMirror();
+    }, { passive: true });
     window.addEventListener('resize', () => { placeMirror(); scheduleMirror(200); }, { passive: true });
     window.addEventListener('load', () => scheduleMirror(0), { once: true });
     document.addEventListener('pjax:send', () => mirror?.host.classList.remove('is-ready'));
