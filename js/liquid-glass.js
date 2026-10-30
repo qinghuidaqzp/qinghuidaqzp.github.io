@@ -466,11 +466,15 @@ if (root.dataset.liquidGlass !== 'upstream') {
   // document queries stay unique), kept in register with the real page as it
   // scrolls, clipped to the nav and run through the nav's lens.
   //
-  // WebKit runs that filter in software on every scroll frame, so the mirror
-  // is kept as cheap as it can be: the lens is the displacement pass alone
-  // (the rim light is the CSS material's), the copy is moved by a transform,
-  // and nothing inside it animates, blurs or blends. A full rebuild clones the
-  // page, so it never runs mid-scroll; lazy images are synced in place.
+  // WebKit runs that filter on the CPU, and re-running it every scroll frame
+  // stuttered on a real iPhone even at its leanest. So the lens rests: while
+  // the page scrolls the mirror is hidden and the nav is plain clear glass
+  // (scrolling stays on the system's fast path); once scrolling stops the
+  // mirror is placed and fades in, so the filter runs once per stop.
+  // It is also kept cheap: the lens is the displacement pass alone (the rim
+  // light is the CSS material's), the copy is moved by a transform, and
+  // nothing inside it animates, blurs or blends. A full rebuild clones the
+  // page, so it only runs when scrolling is quiet; lazy images sync in place.
   const XLINK = 'http://www.w3.org/1999/xlink';
   const MIRROR_BLANK = 'iframe, video, audio, canvas, embed, object';
   const MIRROR_STRIP = '#nav, #rightside, #sidebar, .search-dialog, #search-mask, script, noscript';
@@ -485,8 +489,10 @@ if (root.dataset.liquidGlass !== 'upstream') {
   // What scrolls under the nav: the poster and the page.
   const MIRROR_SOURCES = ['saul-intro', 'body-wrap'];
   const MIRROR_QUIET = 800; // ms after the last scroll before a rebuild may run
+  const MIRROR_SETTLE = 150; // ms after the last scroll before the lens returns
   let mirror = null;
   let mirrorTimer = 0;
+  let settleTimer = 0;
   let mirrorObserver = null;
   let lastScroll = 0;
 
@@ -666,15 +672,41 @@ if (root.dataset.liquidGlass !== 'upstream') {
     }));
   }
 
-  function startMirror() {
-    buildMirror();
-    watchMirror();
-    window.addEventListener('scroll', () => {
-      lastScroll = performance.now();
+  // Scrolling hides the lens at once; it comes back placed once quiet. On
+  // iOS the page scrolls before the page's script hears about it, so a moving
+  // finger hides the lens too, before the first scrolled frame shows a stale
+  // copy; momentum after the finger lifts keeps it hidden until it stops.
+  function hideLens() {
+    lastScroll = performance.now();
+    mirror?.host.classList.add('is-scrolling');
+    clearTimeout(settleTimer);
+  }
+
+  function settleLens() {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => {
+      if (!mirror?.copies) return;
       placeMirror();
-    }, { passive: true });
+      mirror.host.classList.remove('is-scrolling');
+    }, MIRROR_SETTLE);
+  }
+
+  function onMirrorScroll() {
+    hideLens();
+    settleLens();
+  }
+
+  function startMirror() {
+    // Nothing is copied while the page is still loading; the first build
+    // waits for a quiet moment after load.
+    watchMirror();
+    window.addEventListener('scroll', onMirrorScroll, { passive: true });
+    window.addEventListener('touchmove', hideLens, { passive: true });
+    window.addEventListener('touchend', settleLens, { passive: true });
+    window.addEventListener('touchcancel', settleLens, { passive: true });
     window.addEventListener('resize', () => { placeMirror(); scheduleMirror(200); }, { passive: true });
-    window.addEventListener('load', () => scheduleMirror(0), { once: true });
+    if (document.readyState === 'complete') scheduleMirror(600);
+    else window.addEventListener('load', () => scheduleMirror(600), { once: true });
     document.addEventListener('pjax:send', () => mirror?.host.classList.remove('is-ready'));
     document.addEventListener('pjax:complete', () => { watchMirror(); scheduleMirror(450); });
   }

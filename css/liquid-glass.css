@@ -336,6 +336,7 @@ article,
     border-radius: inherit;
     pointer-events: none;
     visibility: hidden;
+    opacity: 0;
     -webkit-clip-path: inset(0 round var(--lg-mirror-radius, 999px));
     clip-path: inset(0 round var(--lg-mirror-radius, 999px));
     /* The lens (displacement only), then the colour lift the full SVG chain
@@ -345,6 +346,16 @@ article,
 
 #nav > .lg-nav-mirror.is-ready {
     visibility: visible;
+    opacity: 1;
+    transition: opacity 0.18s ease-out;
+}
+
+/* While the page scrolls the lens steps aside (WebKit would re-run its
+ * filter every frame); it fades back in, placed, once scrolling stops. */
+#nav > .lg-nav-mirror.is-ready.is-scrolling {
+    visibility: hidden;
+    opacity: 0;
+    transition: none;
 }
 
 /* Over the mirror the nav is clear glass with no frost. The mirror's lens is
