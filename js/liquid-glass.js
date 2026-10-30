@@ -53,8 +53,11 @@ if (root.dataset.liquidGlass !== 'upstream') {
   const NS = 'http://www.w3.org/2000/svg';
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const forcedColors = matchMedia('(forced-colors: active)');
+  // Safari and every iOS browser are WebKit: no SVG backdrop filters. The
+  // vendored UA test lets iOS Edge ("EdgiOS") through, so check here too.
   // ?lg-mirror previews the WebKit path in Chromium.
-  const svgBackdrop = supportsSvgBackdrop() && !new URLSearchParams(location.search).has('lg-mirror');
+  const webkit = /AppleWebKit/.test(navigator.userAgent) && !/Chrome\/|Chromium\/|Edg\//.test(navigator.userAgent);
+  const svgBackdrop = supportsSvgBackdrop() && !webkit && !new URLSearchParams(location.search).has('lg-mirror');
   const records = new Map();
   const visible = new Set();
   const pending = new Set();
@@ -217,12 +220,13 @@ if (root.dataset.liquidGlass !== 'upstream') {
 
   // Each frame hands every lens's map bitmaps to the compositor again, so
   // scrolling costs in proportion to their pixels (measured on the home page:
-  // 43 ms a frame at full size, 6 ms at a quarter). The displacement field is
-  // smooth, so it is generated at 1/scale with every length scaled alike (the
-  // normalised map is the same) and feImage stretches it back. The 1.5px
-  // specular rim would smear, so it stays full size; lean surfaces have none.
+  // 43 ms a frame at full size, 6 ms at a quarter). Cards are most of those
+  // pixels and their lean bezel survives a map generated at 1/scale (every
+  // length scaled alike, so the normalised map is the same) and stretched
+  // back by feImage. The nav and other chrome keep full-size maps: there a
+  // coarse map visibly softens the rim and the magnified band.
   function mapScale(width, height, optics) {
-    if (width * height < 20000) return 1;
+    if (!optics.lean || width * height < 20000) return 1;
     return Math.max(1, Math.min(4, Math.floor(optics.bezelWidth / 6)));
   }
 
@@ -474,9 +478,12 @@ if (root.dataset.liquidGlass !== 'upstream') {
     const nav = mirror.host.parentElement;
     if (!nav) return;
     const n = nav.getBoundingClientRect();
+    // Offsets rather than a transform, so the copy never gets a compositing
+    // layer of its own inside WebKit's (software) filter.
     mirror.copies.forEach(({ original, copy }) => {
       const p = original.getBoundingClientRect();
-      copy.style.transform = `translate(${p.left - n.left}px, ${p.top - n.top}px)`;
+      copy.style.setProperty('left', `${p.left - n.left}px`, 'important');
+      copy.style.setProperty('top', `${p.top - n.top}px`, 'important');
     });
     mirror.backdrop.style.setProperty('left', `${-n.left}px`, 'important');
     mirror.backdrop.style.setProperty('top', `${-n.top}px`, 'important');
@@ -502,7 +509,7 @@ if (root.dataset.liquidGlass !== 'upstream') {
     if (layer) layer.after(host);
     else nav.prepend(host);
     nav.classList.add('lg-mirrored');
-    mirror = { host, root, loaded, key: '', filter: null, shell: null, copies: null, backdrop: null };
+    mirror = { host, root, loaded, key: '', mapImages: [], filter: null, shell: null, copies: null, backdrop: null };
     return mirror;
   }
 
@@ -524,8 +531,6 @@ if (root.dataset.liquidGlass !== 'upstream') {
     });
     copy.querySelectorAll(MIRROR_STRIP).forEach(node => node.remove());
     copy.style.setProperty('position', 'absolute', 'important');
-    copy.style.setProperty('left', '0', 'important');
-    copy.style.setProperty('top', '0', 'important');
     copy.style.setProperty('margin', '0', 'important');
     copy.style.setProperty('width', `${original.offsetWidth}px`, 'important');
     copy.style.setProperty('height', `${original.offsetHeight}px`, 'important');
@@ -559,8 +564,11 @@ if (root.dataset.liquidGlass !== 'upstream') {
     const body = getComputedStyle(document.body);
     const shell = document.createElement('div');
     shell.style.cssText = 'all:initial;display:block;position:absolute;left:0;top:0;';
-    ['font-family', 'font-size', 'line-height', 'color', 'letter-spacing', 'word-break', '-webkit-font-smoothing']
+    ['font-family', 'font-size', 'color', 'letter-spacing', 'word-break', '-webkit-font-smoothing']
       .forEach(name => shell.style.setProperty(name, body.getPropertyValue(name)));
+    // Computed line-height is in px; children must inherit body's ratio.
+    const lineHeight = parseFloat(body.lineHeight) / parseFloat(body.fontSize);
+    shell.style.setProperty('line-height', Number.isFinite(lineHeight) ? lineHeight.toFixed(4) : 'normal');
     shell.append(backdrop, ...copies.map(entry => entry.copy));
     state.shell?.remove();
     state.root.append(shell);
@@ -573,6 +581,8 @@ if (root.dataset.liquidGlass !== 'upstream') {
     const key = `${width}x${height}:${radius.toFixed(1)}`;
     if (width > 1 && height > 1 && state.key !== key) {
       state.filter?.remove();
+      state.mapImages?.forEach(image => image.remove());
+      state.mapImages = [];
       const optics = KINDS.nav;
       const maps = mapsFor(width, height, radius, optics, DEFAULT_ANGLE);
       const filter = createFilter(`lg-mirror-${++sequence}`, maps, optics, optics.magnify);
@@ -582,7 +592,25 @@ if (root.dataset.liquidGlass !== 'upstream') {
       filter.setAttribute('y', '0');
       filter.setAttribute('width', '100%');
       filter.setAttribute('height', '100%');
-      filter.querySelectorAll('feImage').forEach(image => image.setAttributeNS(XLINK, 'xlink:href', image.getAttribute('href')));
+      filter.querySelectorAll('feImage').forEach((image, i) => {
+        const href = image.getAttribute('href');
+        if (!webkit) {
+          image.setAttributeNS(XLINK, 'xlink:href', href);
+          return;
+        }
+        // WebKit renders nothing for an feImage with a data: URL in a filter
+        // on HTML content, but it renders an in-page <image> referenced by id.
+        const source = svg('image', {
+          id: `${filter.id}-map-${i}`, x: 0, y: 0, width: image.getAttribute('width'),
+          height: image.getAttribute('height'), preserveAspectRatio: 'none', href
+        });
+        source.setAttributeNS(XLINK, 'xlink:href', href);
+        definitions.appendChild(source);
+        state.mapImages.push(source);
+        ['x', 'y', 'width', 'height', 'preserveAspectRatio'].forEach(name => image.removeAttribute(name));
+        image.setAttribute('href', `#${source.id}`);
+        image.setAttributeNS(XLINK, 'xlink:href', `#${source.id}`);
+      });
       definitions.appendChild(filter);
       state.filter = filter;
       state.key = key;
@@ -649,7 +677,9 @@ if (root.dataset.liquidGlass !== 'upstream') {
       pointer = null;
     }, { passive: true });
     forcedColors.addEventListener('change', () => visible.forEach(schedule));
-    if (!svgBackdrop && !forcedColors.matches && CSS.supports('clip-path', 'inset(0 round 1px)')) startMirror();
+    // Phones only: computers without SVG backdrops keep the CSS material.
+    const phone = matchMedia('(hover: none) and (pointer: coarse)').matches;
+    if (phone && !svgBackdrop && !forcedColors.matches && CSS.supports('clip-path', 'inset(0 round 1px)')) startMirror();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
