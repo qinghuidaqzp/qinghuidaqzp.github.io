@@ -711,6 +711,526 @@ if (root.dataset.liquidGlass !== 'upstream') {
     document.addEventListener('pjax:complete', () => { watchMirror(); scheduleMirror(450); });
   }
 
+  // --- Nav lens (WebGL, phones) ----------------------------------------------
+  // The computer nav refracts its backdrop with an SVG filter on the GPU.
+  // iPhone browsers (all WebKit) can neither use that filter on a backdrop
+  // nor run SVG filters fast enough to follow scrolling. So on phones the
+  // page is photographed with html2canvas (the backdrop, the poster and the
+  // page in tiles, only while scrolling is quiet) and a WebGL canvas in the
+  // nav refracts those pictures with the computer nav's own maps and steps:
+  // displacement, 1.3x saturation, specular screen. A scroll frame only moves
+  // the pictures, which the GPU keeps up with. Wherever a picture is missing
+  // (not taken yet) the nav is plain clear glass. Without WebGL, or if the
+  // pictures cannot be taken, the nav falls back to the resting mirror above.
+  const LENS_TILE = 3072; // CSS px of page per picture
+  const LENS_SCALE = 2; // picture resolution, device px per CSS px
+  const LENS_QUIET = 400; // ms without scrolling before a picture is taken
+  const LENS_TILES_KEPT = 4;
+  const LENS_SKIP = '#nav, #liquid-nav-anchor, #rightside, #aplayer, #sidebar, #menu-mask, .search-dialog, ' +
+    '#search-mask, .lg-filter-definitions, #lg-page-veil, script, noscript';
+  // html2canvas cannot draw these: negative-spread shadows come out as thick
+  // frames, blurred rings as hard lines, and the poster's SVG noise blacks it
+  // out entirely. Under a 60px lens they would not show anyway. It turns
+  // ::before/::after into html2canvaspseudoelement nodes (styled inline from
+  // the page) before onclone runs, so those are hidden by tag.
+  const LENS_CAPTURE_CSS = `.lg-optical-layer { box-shadow: none !important; }
+    .lg-optical-layer > html2canvaspseudoelement, .lg-lens-layer > html2canvaspseudoelement { display: none !important; }
+    .border-glow-effect, .saul-noise { display: none !important; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }`;
+  const LENS_VERTEX = `attribute vec2 a_position;
+    varying vec2 v_uv;
+    void main() {
+      v_uv = vec2(a_position.x + 1.0, 1.0 - a_position.y) * 0.5;
+      gl_Position = vec4(a_position, 0.0, 1.0);
+    }`;
+  // Same steps as createFilter's chain for the nav (sRGB, premultiplied).
+  const LENS_FRAGMENT = `precision highp float;
+    varying vec2 v_uv;
+    uniform vec2 u_navSize, u_navPos, u_bgSize;
+    uniform float u_scroll, u_scale, u_saturate;
+    uniform vec4 u_posterRect, u_tileARect, u_tileBRect;
+    uniform sampler2D u_map, u_specular, u_bg, u_poster, u_tileA, u_tileB;
+    vec4 inRect(sampler2D picture, vec4 rect, vec2 point) {
+      vec2 uv = (point - rect.xy) / rect.zw;
+      if (rect.w <= 0.0 || uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return vec4(0.0);
+      return texture2D(picture, uv);
+    }
+    void main() {
+      vec4 map = texture2D(u_map, v_uv);
+      vec2 view = u_navPos + v_uv * u_navSize + (map.rg - 0.5) * u_scale;
+      vec2 page = view + vec2(0.0, u_scroll);
+      vec4 color = texture2D(u_bg, clamp(view / u_bgSize, 0.0, 1.0));
+      vec4 poster = inRect(u_poster, u_posterRect, page);
+      color = poster + color * (1.0 - poster.a);
+      vec4 content = inRect(u_tileA, u_tileARect, page) + inRect(u_tileB, u_tileBRect, page);
+      color = content + color * (1.0 - content.a);
+      float luma = dot(color.rgb, vec3(0.213, 0.715, 0.072));
+      color.rgb = clamp(mix(vec3(luma), color.rgb, u_saturate), 0.0, 1.0);
+      vec4 light = texture2D(u_specular, v_uv);
+      color.rgb = color.rgb + light.rgb - color.rgb * light.rgb;
+      gl_FragColor = vec4(color.rgb, 1.0);
+    }`;
+  let lens = null;
+  let html2canvasLoad = null;
+
+  function loadHtml2canvas() {
+    html2canvasLoad ??= new Promise((resolve, reject) => {
+      if (window.html2canvas) return resolve(window.html2canvas);
+      const script = document.createElement('script');
+      script.src = '/vendor/html2canvas/html2canvas.min.js';
+      script.onload = () => (window.html2canvas ? resolve(window.html2canvas) : reject(new Error('html2canvas missing')));
+      script.onerror = () => reject(new Error('html2canvas failed to load'));
+      document.head.appendChild(script);
+    });
+    return html2canvasLoad;
+  }
+
+  // Canvas gradients interpolate unpremultiplied, so a stop of 'transparent'
+  // (black at zero alpha) greys a fade that CSS keeps clean: the backdrop's
+  // pastel glows and white sheens came out grey. Each such stop takes its
+  // neighbour's colour at zero alpha instead.
+  function cleanFades(value) {
+    const parts = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < value.length; i++) {
+      if (value[i] === '(') depth++;
+      else if (value[i] === ')') depth--;
+      else if (value[i] === ',' && depth === 0) {
+        parts.push(value.slice(start, i));
+        start = i + 1;
+      }
+    }
+    parts.push(value.slice(start));
+    return parts.map(gradient => {
+      const colors = [...gradient.matchAll(/rgba?\([^)]*\)/g)];
+      const clear = color => color[0].replace(/\s/g, '') === 'rgba(0,0,0,0)';
+      for (let i = colors.length - 1; i >= 0; i--) {
+        if (!clear(colors[i])) continue;
+        const near = colors.slice(0, i).reverse().find(c => !clear(c)) || colors.slice(i + 1).find(c => !clear(c));
+        if (!near) continue;
+        const [r, g, b] = near[0].match(/[\d.]+/g);
+        gradient = gradient.slice(0, colors[i].index) + `rgba(${r}, ${g}, ${b}, 0)` + gradient.slice(colors[i].index + colors[i][0].length);
+      }
+      return gradient;
+    }).join(',');
+  }
+
+  async function photograph(element, options = {}) {
+    const html2canvas = await loadHtml2canvas();
+    return html2canvas(element, {
+      backgroundColor: null, scale: LENS_SCALE, logging: false, useCORS: true,
+      ignoreElements: node => node.matches?.(LENS_SKIP),
+      onclone: (doc, root) => {
+        const style = doc.createElement('style');
+        style.textContent = LENS_CAPTURE_CSS;
+        doc.head.appendChild(style);
+        // Gradients live on the captured root and on pseudo-elements, which
+        // html2canvas has already turned into inline-styled nodes.
+        [root, ...root.querySelectorAll('html2canvaspseudoelement')].forEach(node => {
+          const value = node.style.backgroundImage || doc.defaultView.getComputedStyle(node).backgroundImage;
+          if (value && value.includes('gradient') && /rgba\(0,\s*0,\s*0,\s*0\)/.test(value)) node.style.backgroundImage = cleanFades(value);
+        });
+      },
+      ...options
+    });
+  }
+
+  // html2canvas ignores clip-path; the poster's V-cut bottom is redrawn here.
+  function clipToShape(canvas, element) {
+    const match = /^polygon\((.*)\)$/.exec(getComputedStyle(element).clipPath || '');
+    if (!match) return canvas;
+    const length = (value, size) => (value.endsWith('%') ? parseFloat(value) / 100 * size : parseFloat(value) * LENS_SCALE);
+    const points = match[1].split(',').map(pair => {
+      const [x, y] = pair.trim().split(/\s+/);
+      return [length(x, canvas.width), length(y, canvas.height)];
+    });
+    const out = document.createElement('canvas');
+    out.width = canvas.width;
+    out.height = canvas.height;
+    const context = out.getContext('2d');
+    context.beginPath();
+    points.forEach(([x, y], i) => (i ? context.lineTo(x, y) : context.moveTo(x, y)));
+    context.closePath();
+    context.clip();
+    context.drawImage(canvas, 0, 0);
+    freeCanvas(canvas);
+    return out;
+  }
+
+  function freeCanvas(canvas) {
+    canvas.width = 0;
+    canvas.height = 0;
+  }
+
+  function createLensGl(canvas) {
+    const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false });
+    if (!gl) return null;
+    const shader = (type, source) => {
+      const result = gl.createShader(type);
+      gl.shaderSource(result, source);
+      gl.compileShader(result);
+      if (!gl.getShaderParameter(result, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(result));
+      return result;
+    };
+    const program = gl.createProgram();
+    gl.attachShader(program, shader(gl.VERTEX_SHADER, LENS_VERTEX));
+    gl.attachShader(program, shader(gl.FRAGMENT_SHADER, LENS_FRAGMENT));
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+    gl.useProgram(program);
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const position = gl.getAttribLocation(program, 'a_position');
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+    const at = {};
+    ['u_navSize', 'u_navPos', 'u_bgSize', 'u_scroll', 'u_scale', 'u_saturate', 'u_posterRect', 'u_tileARect',
+      'u_tileBRect', 'u_map', 'u_specular', 'u_bg', 'u_poster', 'u_tileA', 'u_tileB']
+      .forEach(name => { at[name] = gl.getUniformLocation(program, name); });
+    ['u_map', 'u_specular', 'u_bg', 'u_poster', 'u_tileA', 'u_tileB'].forEach((name, unit) => gl.uniform1i(at[name], unit));
+    const blank = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, blank);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+    return { gl, at, blank };
+  }
+
+  function upload(source, premultiply, texture) {
+    const { gl } = lens.gl;
+    texture ||= gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, premultiply);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return texture;
+  }
+
+  function loadImage(url) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = url;
+    });
+  }
+
+  // The canvas follows the nav's size; the maps are the computer nav's.
+  async function fitLens() {
+    const { nav, canvas } = lens;
+    const width = nav.offsetWidth;
+    const height = nav.offsetHeight;
+    const parsed = parseFloat(getComputedStyle(nav).borderTopLeftRadius);
+    const radius = Math.min(Number.isFinite(parsed) ? parsed : height / 2, width / 2, height / 2);
+    const key = `${width}x${height}:${radius.toFixed(1)}`;
+    if (width < 2 || height < 2 || lens.key === key) return;
+    lens.key = key;
+    const ratio = Math.min(devicePixelRatio || 1, 3);
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    canvas.style.setProperty('--lg-lens-radius', `${radius}px`);
+    const maps = mapsFor(width, height, radius, KINDS.nav, DEFAULT_ANGLE);
+    const [displacement, specular] = await Promise.all([loadImage(maps.displacementUrl), loadImage(maps.specularUrl)]);
+    if (lens.key !== key) return;
+    lens.map = upload(displacement, false, lens.map);
+    lens.specular = upload(specular, true, lens.specular);
+    requestLensDraw();
+  }
+
+  function requestLensDraw() {
+    if (lens && !lens.frame) lens.frame = requestAnimationFrame(drawLens);
+  }
+
+  function drawLens() {
+    if (!lens) return;
+    lens.frame = 0;
+    const { nav, canvas, gl: { gl, at, blank } } = lens;
+    const n = nav.getBoundingClientRect();
+    const reach = KINDS.nav.bezelWidth * KINDS.nav.refractionScale;
+    const top = scrollY + n.top - reach;
+    const bottom = scrollY + n.bottom + reach;
+    // The page pictures must cover the band the lens samples from.
+    const page = document.getElementById('body-wrap');
+    const box = page ? page.getBoundingClientRect() : { top: 0, height: 0 };
+    const needTop = Math.max(top, box.top + scrollY);
+    const needBottom = Math.min(bottom, box.top + scrollY + box.height);
+    const tiles = [...lens.tiles.values()]
+      .filter(tile => tile.top < bottom && tile.top + tile.height > top)
+      .sort((a, b) => a.top - b.top);
+    let covered = needTop >= needBottom;
+    if (!covered && tiles.length && tiles.length <= 2) {
+      covered = tiles[0].top <= needTop && tiles[tiles.length - 1].top + tiles[tiles.length - 1].height >= needBottom &&
+        (tiles.length === 1 || Math.abs(tiles[0].top + tiles[0].height - tiles[1].top) < 1);
+    }
+    const ready = Boolean(lens.map && lens.bg && (lens.poster || !lens.posterElement) && covered);
+    canvas.classList.toggle('is-ready', ready);
+    if (!ready) return;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform2f(at.u_navSize, n.width, n.height);
+    gl.uniform2f(at.u_navPos, n.left, n.top);
+    gl.uniform2f(at.u_bgSize, lens.bg.width, lens.bg.height);
+    gl.uniform1f(at.u_scroll, scrollY);
+    gl.uniform1f(at.u_scale, 2 * KINDS.nav.bezelWidth * KINDS.nav.refractionScale);
+    gl.uniform1f(at.u_saturate, KINDS.nav.saturate ?? 1.3);
+    const rect = (name, item) => gl.uniform4f(at[name], item ? item.left : 0, item ? item.top : 0, item ? item.width : 0, item ? item.height : 0);
+    rect('u_posterRect', lens.poster);
+    rect('u_tileARect', tiles[0]);
+    rect('u_tileBRect', tiles[1]);
+    [lens.map, lens.specular, lens.bg.texture, lens.poster?.texture, tiles[0]?.texture, tiles[1]?.texture]
+      .forEach((texture, unit) => {
+        gl.activeTexture(gl.TEXTURE0 + unit);
+        gl.bindTexture(gl.TEXTURE_2D, texture || blank);
+      });
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  // Pictures to take, most urgent first: backdrop, poster, the page under
+  // the nav, then the pictures either side of it.
+  function nextPicture() {
+    if (!lens.bg) return { kind: 'bg' };
+    if (lens.posterElement && !lens.poster) return { kind: 'poster' };
+    const page = document.getElementById('body-wrap');
+    if (!page) return null;
+    const pageTop = page.getBoundingClientRect().top + scrollY;
+    const count = Math.max(1, Math.ceil(page.offsetHeight / LENS_TILE));
+    const navTop = scrollY + lens.nav.getBoundingClientRect().top;
+    const here = Math.min(count - 1, Math.max(0, Math.floor((navTop - pageTop) / LENS_TILE)));
+    for (const index of [here, here + 1, here - 1]) {
+      if (index < 0 || index >= count) continue;
+      const tile = lens.tiles.get(index);
+      if (!tile || tile.stale) return { kind: 'tile', index };
+    }
+    if (lens.posterStale) return { kind: 'poster' };
+    return null;
+  }
+
+  async function takePicture(job) {
+    const generation = lens.generation;
+    if (job.kind === 'bg') {
+      const element = document.getElementById('web_bg');
+      const canvas = await photograph(element);
+      if (lens?.generation !== generation) return;
+      lens.bg = { texture: upload(canvas, true, lens.bg?.texture), width: canvas.width / LENS_SCALE, height: canvas.height / LENS_SCALE };
+      freeCanvas(canvas);
+      return;
+    }
+    if (job.kind === 'poster') {
+      const element = lens.posterElement;
+      const box = element.getBoundingClientRect();
+      const canvas = clipToShape(await photograph(element), element);
+      if (lens?.generation !== generation) return;
+      lens.poster = {
+        texture: upload(canvas, true, lens.poster?.texture),
+        left: box.left + scrollX, top: box.top + scrollY, width: canvas.width / LENS_SCALE, height: canvas.height / LENS_SCALE
+      };
+      lens.posterStale = false;
+      freeCanvas(canvas);
+      return;
+    }
+    const page = document.getElementById('body-wrap');
+    const box = page.getBoundingClientRect();
+    const pageTop = box.top + scrollY;
+    const offset = job.index * LENS_TILE;
+    const height = Math.min(LENS_TILE, page.offsetHeight - offset);
+    if (height <= 0) return;
+    // html2canvas crops relative to the element, not the document.
+    const canvas = await photograph(page, { x: 0, y: offset, width: page.offsetWidth, height });
+    if (lens?.generation !== generation) return;
+    const tile = lens.tiles.get(job.index) || {};
+    Object.assign(tile, {
+      texture: upload(canvas, true, tile.texture), left: box.left + scrollX, top: pageTop + offset,
+      width: canvas.width / LENS_SCALE, height: canvas.height / LENS_SCALE, stale: false
+    });
+    freeCanvas(canvas);
+    lens.tiles.set(job.index, tile);
+    // Keep the pictures nearest the nav; free the rest.
+    const navTop = scrollY + lens.nav.getBoundingClientRect().top;
+    [...lens.tiles.values()]
+      .sort((a, b) => Math.abs(a.top + a.height / 2 - navTop) - Math.abs(b.top + b.height / 2 - navTop))
+      .slice(LENS_TILES_KEPT)
+      .forEach(old => {
+        lens.gl.gl.deleteTexture(old.texture);
+        lens.tiles.forEach((value, key) => { if (value === old) lens.tiles.delete(key); });
+      });
+  }
+
+  function scheduleLensPicture(delay = LENS_QUIET) {
+    if (!lens) return;
+    clearTimeout(lens.timer);
+    lens.timer = setTimeout(runLensPicture, delay);
+  }
+
+  // One picture at a time, and only while scrolling is quiet: html2canvas
+  // holds the main thread while it draws.
+  async function runLensPicture() {
+    if (!lens || lens.busy) return;
+    const quiet = performance.now() - lastScroll;
+    if (quiet < LENS_QUIET) return scheduleLensPicture(LENS_QUIET - quiet);
+    const job = nextPicture();
+    if (!job) return;
+    lens.busy = true;
+    try {
+      await takePicture(job);
+      lens.failures = 0;
+    } catch (error) {
+      lens.failures = (lens.failures || 0) + 1;
+      console.warn('Liquid Glass: could not photograph the page for the nav lens.', error);
+    } finally {
+      if (lens) lens.busy = false;
+    }
+    if (!lens) return;
+    if (lens.failures >= 3) {
+      stopLens();
+      startMirror();
+      return;
+    }
+    requestLensDraw();
+    scheduleLensPicture(80);
+  }
+
+  // A pjax swap replaces the page (the poster outside it stays); a resize
+  // changes every picture's layout, so it also drops the poster and backdrop.
+  function resetLens(everything = false) {
+    if (!lens) return;
+    const { gl } = lens.gl;
+    lens.generation++;
+    lens.tiles.forEach(tile => gl.deleteTexture(tile.texture));
+    lens.tiles.clear();
+    const posterElement = document.getElementById('saul-intro');
+    if ((everything || posterElement !== lens.posterElement) && lens.poster) {
+      gl.deleteTexture(lens.poster.texture);
+      lens.poster = null;
+    }
+    if (everything && lens.bg) {
+      gl.deleteTexture(lens.bg.texture);
+      lens.bg = null;
+    }
+    lens.posterElement = posterElement;
+    lens.posterStale = false;
+    lens.canvas.classList.remove('is-ready');
+  }
+
+  function watchLens() {
+    lens.observer ??= new MutationObserver(records => {
+      if (!lens) return;
+      let poster = false;
+      records.forEach(record => {
+        if (lens.posterElement?.contains(record.target)) poster = true;
+      });
+      if (poster) lens.posterStale = true;
+      else lens.tiles.forEach(tile => { tile.stale = true; });
+      scheduleLensPicture();
+    });
+    lens.observer.disconnect();
+    [lens.posterElement, document.getElementById('body-wrap')].filter(Boolean).forEach(target => lens.observer.observe(target, {
+      childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['src', 'srcset']
+    }));
+  }
+
+  function stopLens() {
+    if (!lens) return;
+    clearTimeout(lens.timer);
+    cancelAnimationFrame(lens.frame);
+    lens.observer?.disconnect();
+    lens.canvas.remove();
+    lens.nav.classList.remove('lg-lensed');
+    lens.listeners.forEach(([target, type, handler]) => target.removeEventListener(type, handler));
+    lens = null;
+  }
+
+  function startLens() {
+    const nav = document.getElementById('nav');
+    const canvas = document.createElement('canvas');
+    canvas.className = 'lg-nav-lens';
+    canvas.setAttribute('aria-hidden', 'true');
+    let lensGl = null;
+    try {
+      lensGl = nav && createLensGl(canvas);
+    } catch (error) {
+      console.warn('Liquid Glass: WebGL lens unavailable.', error);
+    }
+    if (!lensGl) {
+      startMirror();
+      return;
+    }
+    const layer = nav.querySelector(':scope > .lg-optical-layer');
+    if (layer) layer.after(canvas);
+    else nav.prepend(canvas);
+    nav.classList.add('lg-lensed');
+    lens = {
+      nav, canvas, gl: lensGl, key: '', map: null, specular: null, bg: null, poster: null, posterStale: false,
+      posterElement: document.getElementById('saul-intro'), tiles: new Map(), generation: 0, busy: false, failures: 0, timer: 0, frame: 0, observer: null, listeners: []
+    };
+    const on = (target, type, handler) => {
+      target.addEventListener(type, handler, { passive: true });
+      lens.listeners.push([target, type, handler]);
+    };
+    // Redraw on every scroll event, and keep following scrollY frame by frame
+    // until it has been still for a while, in case momentum scrolling sends
+    // fewer events than frames.
+    let follow = 0;
+    let still = 0;
+    let followedY = -1;
+    const followScroll = () => {
+      follow = 0;
+      if (!lens) return;
+      if (scrollY !== followedY) {
+        followedY = scrollY;
+        still = 0;
+        drawLens();
+      } else {
+        still++;
+      }
+      if (still < 20) follow = requestAnimationFrame(followScroll);
+    };
+    const onScroll = () => {
+      lastScroll = performance.now();
+      followedY = scrollY;
+      still = 0;
+      drawLens();
+      if (!follow) follow = requestAnimationFrame(followScroll);
+      scheduleLensPicture();
+    };
+    on(window, 'scroll', onScroll);
+    on(window, 'touchmove', () => {
+      lastScroll = performance.now();
+      still = 0;
+      if (!follow) follow = requestAnimationFrame(followScroll);
+    });
+    // iOS fires resize as its toolbar slides in and out; only a change of
+    // width (rotation) moves the layout.
+    let width = innerWidth;
+    on(window, 'resize', () => {
+      if (innerWidth === width) {
+        requestLensDraw();
+        return;
+      }
+      width = innerWidth;
+      resetLens(true);
+      fitLens().catch(() => {});
+      scheduleLensPicture();
+    });
+    on(document, 'pjax:send', () => resetLens());
+    on(document, 'pjax:complete', () => {
+      watchLens();
+      fitLens().catch(() => {});
+      scheduleLensPicture(LENS_QUIET);
+    });
+    canvas.addEventListener('webglcontextlost', () => {
+      stopLens();
+      startMirror();
+    });
+    watchLens();
+    fitLens().catch(error => console.warn('Liquid Glass: lens maps failed.', error));
+    // The first pictures wait for the page and its fonts to finish loading.
+    const begin = () => (document.fonts?.ready || Promise.resolve()).then(() => scheduleLensPicture(600));
+    if (document.readyState === 'complete') begin();
+    else window.addEventListener('load', begin, { once: true });
+  }
+
   function boot() {
     root.dataset.liquidGlass = 'upstream';
     root.dataset.liquidGlassSource = 'd61ba1109a62';
@@ -739,7 +1259,7 @@ if (root.dataset.liquidGlass !== 'upstream') {
     forcedColors.addEventListener('change', () => visible.forEach(schedule));
     // Phones only: computers without SVG backdrops keep the CSS material.
     const phone = matchMedia('(hover: none) and (pointer: coarse)').matches;
-    if (phone && !svgBackdrop && !forcedColors.matches && CSS.supports('clip-path', 'inset(0 round 1px)')) startMirror();
+    if (phone && !svgBackdrop && !forcedColors.matches && CSS.supports('clip-path', 'inset(0 round 1px)')) startLens();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });

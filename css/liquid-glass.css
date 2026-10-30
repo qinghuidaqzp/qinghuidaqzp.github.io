@@ -358,6 +358,44 @@ article,
     transition: none;
 }
 
+/* Phones' WebGL lens (liquid-glass.js): a canvas in the nav that refracts
+ * pictures of the page with the computer nav's maps and steps. It fades in
+ * once the pictures under the nav are taken; until then the nav is plain
+ * clear glass. */
+#nav > .lg-nav-lens {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: -2 !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+    -webkit-clip-path: inset(0 round var(--lg-lens-radius, 999px));
+    clip-path: inset(0 round var(--lg-lens-radius, 999px));
+}
+
+#nav > .lg-nav-lens.is-ready {
+    opacity: 1;
+}
+
+/* Over the lens the nav wears the computer nav's glass exactly: no frost,
+ * the damped rims its SVG specular sits with (the lens draws the specular). */
+#nav.lg-lensed.lg-surface.is-fallback > .lg-optical-layer {
+    background-image: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow:
+        inset 1.5px -1.5px 1px -1px color-mix(in srgb, var(--lgos-rim-bl) 60%, transparent),
+        inset -1.5px 1.5px 1px -1px color-mix(in srgb, var(--lgos-rim-tr) 60%, transparent),
+        inset 0 0 var(--lgos-shade-blur) var(--lgos-shade),
+        var(--lgos-drop);
+}
+
 /* Over the mirror the nav is clear glass with no frost. The mirror's lens is
  * the displacement pass alone, so the rim light is the material's full LGOS
  * rims (the base rule) rather than an SVG specular. */
@@ -370,7 +408,7 @@ article,
 @media (hover: none) and (pointer: coarse) {
     /* A phone nav without the mirror (still loading, or a browser without
      * clip-path): legible frosted glass with a lit bevel. */
-    .lg-surface.is-fallback[data-lg-kind='nav']:not(.lg-mirrored) > .lg-optical-layer {
+    .lg-surface.is-fallback[data-lg-kind='nav']:not(.lg-mirrored):not(.lg-lensed) > .lg-optical-layer {
         --lg-tint: rgba(255, 255, 255, 0.16);
         background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, 0.12) 100%);
         -webkit-backdrop-filter: blur(10px) saturate(1.9) brightness(1.06);
