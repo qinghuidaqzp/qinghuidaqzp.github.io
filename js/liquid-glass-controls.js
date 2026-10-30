@@ -595,7 +595,7 @@
 
   function boot() {
     root.dataset.liquidControls = 'ready';
-    root.dataset.liquidControlsVersion = '20261030-lg18';
+    root.dataset.liquidControlsVersion = '20261030-lg19';
     veil = document.getElementById('lg-page-veil');
     if (!veil) {
       veil = document.createElement('div');

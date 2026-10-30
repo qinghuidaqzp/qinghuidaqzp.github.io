@@ -320,6 +320,37 @@ article,
     backdrop-filter: blur(1px) saturate(1.4) brightness(1.03);
 }
 
+/* WebKit (Safari and every iPhone browser) cannot use an SVG filter as a
+ * backdrop, so the nav imitates the lens with what it has: a clear centre
+ * and a soft bezel band where what passes under the rim is smeared, lit and
+ * saturated, as the SVG bezel does. The band sits on ::before (the LGOS ring
+ * is dropped here); the layer itself has no backdrop filter, or it would
+ * become the band's backdrop root and the band would see only the tint. */
+.lg-surface.is-fallback[data-lg-kind='nav'] > .lg-optical-layer {
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 45%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
+.lg-surface.is-fallback[data-lg-kind='nav'] > .lg-optical-layer::before {
+    inset: 0;
+    top: 0;
+    left: 0;
+    width: auto;
+    height: auto;
+    border: 0;
+    transform: none;
+    filter: none;
+    -webkit-backdrop-filter: blur(3px) saturate(1.9) brightness(1.12);
+    backdrop-filter: blur(3px) saturate(1.9) brightness(1.12);
+    -webkit-mask:
+        linear-gradient(to bottom, #000, transparent 18px, transparent calc(100% - 18px), #000),
+        linear-gradient(to right, #000, transparent 28px, transparent calc(100% - 28px), #000);
+    mask:
+        linear-gradient(to bottom, #000, transparent 18px, transparent calc(100% - 18px), #000),
+        linear-gradient(to right, #000, transparent 28px, transparent calc(100% - 28px), #000);
+}
+
 /* Reading slabs (#post, #page, #archive...): clear glass, no frost. */
 .lg-surface.is-fallback[data-lg-kind='reading'] > .lg-optical-layer {
     -webkit-backdrop-filter: saturate(1.25);
