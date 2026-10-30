@@ -53,7 +53,8 @@ if (root.dataset.liquidGlass !== 'upstream') {
   const NS = 'http://www.w3.org/2000/svg';
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const forcedColors = matchMedia('(forced-colors: active)');
-  const svgBackdrop = supportsSvgBackdrop();
+  // ?lg-mirror previews the WebKit path in Chromium.
+  const svgBackdrop = supportsSvgBackdrop() && !new URLSearchParams(location.search).has('lg-mirror');
   const records = new Map();
   const visible = new Set();
   const pending = new Set();
@@ -452,6 +453,176 @@ if (root.dataset.liquidGlass !== 'upstream') {
     }
   }
 
+  // --- Nav mirror (WebKit) -------------------------------------------------
+  // WebKit cannot use an SVG filter as a backdrop, but it can filter an
+  // element's own content. So on that path the nav refracts a mirror: a copy
+  // of the page (in a shadow root, so ids and document queries stay unique),
+  // kept in register with the real page as it scrolls, clipped to the nav and
+  // run through the nav's own lens filter.
+  const XLINK = 'http://www.w3.org/1999/xlink';
+  const MIRROR_BLANK = 'iframe, video, audio, canvas, embed, object';
+  const MIRROR_STRIP = '#nav, #rightside, #sidebar, .search-dialog, #search-mask, script, noscript';
+  let mirror = null;
+  let mirrorTimer = 0;
+  let mirrorObserver = null;
+
+  // What scrolls under the nav: the poster (home page only) and the page.
+  const MIRROR_SOURCES = ['saul-intro', 'body-wrap'];
+
+  function placeMirror() {
+    if (!mirror?.copies) return;
+    const nav = mirror.host.parentElement;
+    if (!nav) return;
+    const n = nav.getBoundingClientRect();
+    mirror.copies.forEach(({ original, copy }) => {
+      const p = original.getBoundingClientRect();
+      copy.style.transform = `translate(${p.left - n.left}px, ${p.top - n.top}px)`;
+    });
+    mirror.backdrop.style.setProperty('left', `${-n.left}px`, 'important');
+    mirror.backdrop.style.setProperty('top', `${-n.top}px`, 'important');
+    mirror.backdrop.style.setProperty('width', `${innerWidth}px`, 'important');
+    mirror.backdrop.style.setProperty('height', `${innerHeight}px`, 'important');
+  }
+
+  function mirrorHost(nav) {
+    if (mirror?.host.parentElement === nav) return mirror;
+    mirror?.host.remove();
+    const host = document.createElement('div');
+    host.className = 'lg-nav-mirror';
+    host.setAttribute('aria-hidden', 'true');
+    host.inert = true;
+    const root = host.attachShadow({ mode: 'open' });
+    // The page's own stylesheets (cached), so the copy lays out as the page.
+    const sheets = Array.from(document.head.querySelectorAll('link[rel="stylesheet"], style'))
+      .map(node => node.cloneNode(true));
+    root.append(...sheets);
+    const loaded = Promise.all(sheets.filter(sheet => sheet.tagName === 'LINK')
+      .map(link => new Promise(done => { link.onload = link.onerror = done; })));
+    const layer = nav.querySelector(':scope > .lg-optical-layer');
+    if (layer) layer.after(host);
+    else nav.prepend(host);
+    nav.classList.add('lg-mirrored');
+    mirror = { host, root, loaded, key: '', filter: null, shell: null, copies: null, backdrop: null };
+    return mirror;
+  }
+
+  function copyForMirror(original) {
+    // Embeds would load twice and canvases copy blank: keep their boxes only.
+    const blanks = Array.from(original.querySelectorAll(MIRROR_BLANK));
+    const copy = original.cloneNode(true);
+    // Element pairs, taken before anything is stripped, to phase-lock
+    // animations (the poster's floating title) to the originals.
+    const twins = new Map();
+    const copies = [copy, ...copy.querySelectorAll('*')];
+    [original, ...original.querySelectorAll('*')].forEach((element, i) => twins.set(element, copies[i]));
+    copy.querySelectorAll(MIRROR_BLANK).forEach((node, i) => {
+      const box = document.createElement('div');
+      const source = blanks[i];
+      box.style.cssText = `display:${source ? getComputedStyle(source).display : 'block'};` +
+        `width:${source?.offsetWidth || 0}px;height:${source?.offsetHeight || 0}px`;
+      node.replaceWith(box);
+    });
+    copy.querySelectorAll(MIRROR_STRIP).forEach(node => node.remove());
+    copy.style.setProperty('position', 'absolute', 'important');
+    copy.style.setProperty('left', '0', 'important');
+    copy.style.setProperty('top', '0', 'important');
+    copy.style.setProperty('margin', '0', 'important');
+    copy.style.setProperty('width', `${original.offsetWidth}px`, 'important');
+    copy.style.setProperty('height', `${original.offsetHeight}px`, 'important');
+    return { original, copy, twins };
+  }
+
+  // A copied CSS animation starts from zero; give it the original's clock.
+  function syncMirrorAnimations({ original, twins }) {
+    if (!original.getAnimations) return;
+    original.getAnimations({ subtree: true }).forEach(animation => {
+      const effect = animation.effect;
+      const twin = effect?.target && twins.get(effect.target);
+      if (!twin || !animation.animationName || !twin.isConnected) return;
+      const match = twin.getAnimations().find(candidate => candidate.animationName === animation.animationName &&
+        (candidate.effect?.pseudoElement || null) === (effect.pseudoElement || null));
+      if (match && animation.currentTime != null) match.currentTime = animation.currentTime;
+    });
+  }
+
+  function buildMirror() {
+    clearTimeout(mirrorTimer);
+    const nav = document.getElementById('nav');
+    const sources = MIRROR_SOURCES.map(id => document.getElementById(id)).filter(Boolean);
+    if (!nav || !sources.length) return;
+    const state = mirrorHost(nav);
+    const copies = sources.map(copyForMirror);
+    const backdrop = document.getElementById('web_bg')?.cloneNode(true) || document.createElement('div');
+    backdrop.style.setProperty('position', 'absolute', 'important');
+    backdrop.style.setProperty('inset', 'auto', 'important');
+    // Inside the shadow root the copy inherits from the nav, not from body.
+    const body = getComputedStyle(document.body);
+    const shell = document.createElement('div');
+    shell.style.cssText = 'all:initial;display:block;position:absolute;left:0;top:0;';
+    ['font-family', 'font-size', 'line-height', 'color', 'letter-spacing', 'word-break', '-webkit-font-smoothing']
+      .forEach(name => shell.style.setProperty(name, body.getPropertyValue(name)));
+    shell.append(backdrop, ...copies.map(entry => entry.copy));
+    state.shell?.remove();
+    state.root.append(shell);
+    Object.assign(state, { shell, copies, backdrop });
+
+    const width = nav.offsetWidth;
+    const height = nav.offsetHeight;
+    const parsed = parseFloat(getComputedStyle(nav).borderTopLeftRadius);
+    const radius = Math.min(Number.isFinite(parsed) ? parsed : height / 2, width / 2, height / 2);
+    const key = `${width}x${height}:${radius.toFixed(1)}`;
+    if (width > 1 && height > 1 && state.key !== key) {
+      state.filter?.remove();
+      const optics = KINDS.nav;
+      const maps = mapsFor(width, height, radius, optics, DEFAULT_ANGLE);
+      const filter = createFilter(`lg-mirror-${++sequence}`, maps, optics, optics.magnify);
+      // The lens only pulls inward, so the input never needs to reach past
+      // the nav: the smallest region keeps WebKit's software filter cheap.
+      filter.setAttribute('x', '0');
+      filter.setAttribute('y', '0');
+      filter.setAttribute('width', '100%');
+      filter.setAttribute('height', '100%');
+      filter.querySelectorAll('feImage').forEach(image => image.setAttributeNS(XLINK, 'xlink:href', image.getAttribute('href')));
+      definitions.appendChild(filter);
+      state.filter = filter;
+      state.key = key;
+      state.host.style.setProperty('--lg-mirror-filter', `url("#${filter.id}")`);
+      state.host.style.setProperty('--lg-mirror-radius', `${radius}px`);
+    }
+    placeMirror();
+    state.loaded.then(() => {
+      if (state.copies !== copies) return; // rebuilt meanwhile
+      copies.forEach(syncMirrorAnimations);
+      copies.forEach(entry => { entry.twins = null; });
+      state.host.classList.add('is-ready');
+    });
+  }
+
+  function scheduleMirror(delay = 600) {
+    clearTimeout(mirrorTimer);
+    mirrorTimer = setTimeout(buildMirror, delay);
+  }
+
+  // Rebuild when the page's content changes (Douban lists, lazy images, a
+  // pjax swap); engine bookkeeping such as classes and glow styles is ignored.
+  function watchMirror() {
+    mirrorObserver ??= new MutationObserver(() => scheduleMirror());
+    mirrorObserver.disconnect();
+    MIRROR_SOURCES.map(id => document.getElementById(id)).filter(Boolean).forEach(source => mirrorObserver.observe(source, {
+      childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['src', 'srcset']
+    }));
+  }
+
+  function startMirror() {
+    buildMirror();
+    watchMirror();
+    window.addEventListener('scroll', placeMirror, { passive: true });
+    window.addEventListener('resize', () => { placeMirror(); scheduleMirror(200); }, { passive: true });
+    window.addEventListener('load', () => scheduleMirror(0), { once: true });
+    document.addEventListener('pjax:send', () => mirror?.host.classList.remove('is-ready'));
+    document.addEventListener('pjax:complete', () => { watchMirror(); scheduleMirror(450); });
+  }
+
   function boot() {
     root.dataset.liquidGlass = 'upstream';
     root.dataset.liquidGlassSource = 'd61ba1109a62';
@@ -478,6 +649,7 @@ if (root.dataset.liquidGlass !== 'upstream') {
       pointer = null;
     }, { passive: true });
     forcedColors.addEventListener('change', () => visible.forEach(schedule));
+    if (!svgBackdrop && !forcedColors.matches && CSS.supports('clip-path', 'inset(0 round 1px)')) startMirror();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });

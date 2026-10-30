@@ -343,6 +343,34 @@ article,
     content: none;
 }
 
+/* WebKit's lens: liquid-glass.js puts a copy of the page inside the nav and
+ * runs it through the nav's SVG filter, so content under the nav bends and
+ * magnifies as it does on Chromium. The glass over it stays clear. */
+#nav > .lg-nav-mirror {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: -2 !important;
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: inherit;
+    pointer-events: none;
+    visibility: hidden;
+    -webkit-clip-path: inset(0 round var(--lg-mirror-radius, 999px));
+    clip-path: inset(0 round var(--lg-mirror-radius, 999px));
+    filter: var(--lg-mirror-filter);
+}
+
+#nav > .lg-nav-mirror.is-ready {
+    visibility: visible;
+}
+
+#nav.lg-mirrored.lg-surface.is-fallback > .lg-optical-layer {
+    --lg-tint: rgba(255, 255, 255, 0.08);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
 /* A resting selection pill sits above its label: frost would blur the label
  * it marks, so the fallback bead is a clear, lit film. */
 .lg-surface.is-fallback[data-lg-kind='pill'] > .lg-optical-layer {
