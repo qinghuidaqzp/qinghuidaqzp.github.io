@@ -728,6 +728,15 @@ if (root.dataset.liquidGlass !== 'upstream') {
   const LENS_TILES_KEPT = 4;
   const LENS_SKIP = '#nav, #liquid-nav-anchor, #rightside, #aplayer, #sidebar, #menu-mask, .search-dialog, ' +
     '#search-mask, .lg-filter-definitions, #lg-page-veil, script, noscript';
+  // html2canvas copies the whole document into an iframe and waits for every
+  // image and font there before drawing: a slow external avatar held a
+  // picture for 12 s, the icon font re-download for 2-3 s each time. So the
+  // copy leaves out preload hints, the icon font, and images still loading
+  // (they are blank on the page too; a picture is retaken once they load).
+  const LENS_SKIP_LOADING = 'link[rel="preload"], link[rel="modulepreload"], link[rel="prefetch"], ' +
+    'link[href*="fontawesome"], link[href*="font-awesome"]';
+  // Backdrop and poster are the same on every page: kept across reloads.
+  const LENS_STORE = `lg-lens:${(import.meta.url.match(/[?&]v=([^&]+)/) || [])[1] || '0'}`;
   // html2canvas cannot draw these: negative-spread shadows come out as thick
   // frames, blurred rings as hard lines, and the poster's SVG noise blacks it
   // out entirely. Under a 60px lens they would not show anyway. It turns
@@ -819,8 +828,9 @@ if (root.dataset.liquidGlass !== 'upstream') {
   async function photograph(element, options = {}) {
     const html2canvas = await loadHtml2canvas();
     return html2canvas(element, {
-      backgroundColor: null, scale: LENS_SCALE, logging: false, useCORS: true,
-      ignoreElements: node => node.matches?.(LENS_SKIP),
+      backgroundColor: null, scale: LENS_SCALE, logging: false, useCORS: true, imageTimeout: 1500,
+      ignoreElements: node => Boolean(node.matches?.(LENS_SKIP) || node.matches?.(LENS_SKIP_LOADING) ||
+        (node.tagName === 'IMG' && !node.complete)),
       onclone: (doc, root) => {
         const style = doc.createElement('style');
         style.textContent = LENS_CAPTURE_CSS;
@@ -957,8 +967,9 @@ if (root.dataset.liquidGlass !== 'upstream') {
     const box = page ? page.getBoundingClientRect() : { top: 0, height: 0 };
     const needTop = Math.max(top, box.top + scrollY);
     const needBottom = Math.min(bottom, box.top + scrollY + box.height);
+    // Only pictures of this page: after a pjax swap the old ones are void.
     const tiles = [...lens.tiles.values()]
-      .filter(tile => tile.top < bottom && tile.top + tile.height > top)
+      .filter(tile => tile.page === page && tile.top < bottom && tile.top + tile.height > top)
       .sort((a, b) => a.top - b.top);
     let covered = needTop >= needBottom;
     if (!covered && tiles.length && tiles.length <= 2) {
@@ -1001,48 +1012,98 @@ if (root.dataset.liquidGlass !== 'upstream') {
     for (const index of [here, here + 1, here - 1]) {
       if (index < 0 || index >= count) continue;
       const tile = lens.tiles.get(index);
-      if (!tile || tile.stale) return { kind: 'tile', index };
+      if (!tile || tile.stale || tile.page !== page) return { kind: 'tile', index };
     }
     if (lens.posterStale) return { kind: 'poster' };
     return null;
   }
 
+  // Backdrop and poster pictures kept in localStorage across page loads,
+  // keyed by asset version and size; older ones are dropped when replaced.
+  function storedPicture(kind, element) {
+    const key = `${LENS_STORE}:${kind}:${innerWidth}x${element.offsetHeight}`;
+    try {
+      return { key, url: localStorage.getItem(key) };
+    } catch {
+      return { key, url: null };
+    }
+  }
+
+  function storePicture(key, kind, canvas) {
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const name = localStorage.key(i);
+        if (name && name !== key && name.startsWith('lg-lens:') && name.includes(`:${kind}:`)) localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, kind === 'bg' ? canvas.toDataURL('image/jpeg', 0.9) : canvas.toDataURL('image/png'));
+    } catch {
+      // Storage full or disabled: the picture is simply retaken next time.
+    }
+  }
+
+  // A stored picture if there is one, else a fresh one (then stored).
+  async function backdropPicture(kind, element) {
+    const { key, url } = storedPicture(kind, element);
+    const stored = url ? await loadImage(url).catch(() => null) : null;
+    if (stored) return { source: stored, done: () => {} };
+    let canvas = await photograph(element);
+    if (kind === 'poster') canvas = clipToShape(canvas, element);
+    return {
+      source: canvas,
+      done: () => {
+        storePicture(key, kind, canvas);
+        freeCanvas(canvas);
+      }
+    };
+  }
+
   async function takePicture(job) {
     const generation = lens.generation;
     if (job.kind === 'bg') {
-      const element = document.getElementById('web_bg');
-      const canvas = await photograph(element);
-      if (lens?.generation !== generation) return;
-      lens.bg = { texture: upload(canvas, true, lens.bg?.texture), width: canvas.width / LENS_SCALE, height: canvas.height / LENS_SCALE };
-      freeCanvas(canvas);
+      const { source, done } = await backdropPicture('bg', document.getElementById('web_bg'));
+      if (lens?.generation !== generation) return done();
+      lens.bg = { texture: upload(source, true, lens.bg?.texture), width: source.width / LENS_SCALE, height: source.height / LENS_SCALE };
+      done();
       return;
     }
     if (job.kind === 'poster') {
       const element = lens.posterElement;
+      // A changed poster is retaken fresh; otherwise the stored one will do.
+      let picture;
+      if (lens.posterStale) {
+        const canvas = clipToShape(await photograph(element), element);
+        picture = { source: canvas, done: () => freeCanvas(canvas) };
+      } else {
+        picture = await backdropPicture('poster', element);
+      }
+      const { source, done } = picture;
+      if (lens?.generation !== generation) return done();
       const box = element.getBoundingClientRect();
-      const canvas = clipToShape(await photograph(element), element);
-      if (lens?.generation !== generation) return;
       lens.poster = {
-        texture: upload(canvas, true, lens.poster?.texture),
-        left: box.left + scrollX, top: box.top + scrollY, width: canvas.width / LENS_SCALE, height: canvas.height / LENS_SCALE
+        texture: upload(source, true, lens.poster?.texture),
+        left: box.left + scrollX, top: box.top + scrollY, width: source.width / LENS_SCALE, height: source.height / LENS_SCALE
       };
       lens.posterStale = false;
-      freeCanvas(canvas);
+      done();
       return;
     }
     const page = document.getElementById('body-wrap');
-    const box = page.getBoundingClientRect();
-    const pageTop = box.top + scrollY;
     const offset = job.index * LENS_TILE;
     const height = Math.min(LENS_TILE, page.offsetHeight - offset);
     if (height <= 0) return;
     // html2canvas crops relative to the element, not the document.
     const canvas = await photograph(page, { x: 0, y: offset, width: page.offsetWidth, height });
-    if (lens?.generation !== generation) return;
+    // A pjax swap during the picture: it shows the old page, so drop it.
+    if (lens?.generation !== generation || document.getElementById('body-wrap') !== page) {
+      freeCanvas(canvas);
+      return;
+    }
+    const box = page.getBoundingClientRect();
+    const pageTop = box.top + scrollY;
     const tile = lens.tiles.get(job.index) || {};
     Object.assign(tile, {
       texture: upload(canvas, true, tile.texture), left: box.left + scrollX, top: pageTop + offset,
-      width: canvas.width / LENS_SCALE, height: canvas.height / LENS_SCALE, stale: false
+      width: canvas.width / LENS_SCALE, height: canvas.height / LENS_SCALE, stale: false, page
     });
     freeCanvas(canvas);
     lens.tiles.set(job.index, tile);
@@ -1067,6 +1128,8 @@ if (root.dataset.liquidGlass !== 'upstream') {
   // holds the main thread while it draws.
   async function runLensPicture() {
     if (!lens || lens.busy) return;
+    // Mid page switch the old page is still in place: nothing to take yet.
+    if (lens.switching > performance.now()) return scheduleLensPicture(lens.switching - performance.now());
     const quiet = performance.now() - lastScroll;
     if (quiet < LENS_QUIET) return scheduleLensPicture(LENS_QUIET - quiet);
     const job = nextPicture();
@@ -1162,7 +1225,8 @@ if (root.dataset.liquidGlass !== 'upstream') {
     nav.classList.add('lg-lensed');
     lens = {
       nav, canvas, gl: lensGl, key: '', map: null, specular: null, bg: null, poster: null, posterStale: false,
-      posterElement: document.getElementById('saul-intro'), tiles: new Map(), generation: 0, busy: false, failures: 0, timer: 0, frame: 0, observer: null, listeners: []
+      posterElement: document.getElementById('saul-intro'), tiles: new Map(), generation: 0, busy: false, failures: 0, timer: 0, frame: 0, observer: null, listeners: [],
+      switching: 0
     };
     const on = (target, type, handler) => {
       target.addEventListener(type, handler, { passive: true });
@@ -1213,8 +1277,15 @@ if (root.dataset.liquidGlass !== 'upstream') {
       fitLens().catch(() => {});
       scheduleLensPicture();
     });
-    on(document, 'pjax:send', () => resetLens());
+    // A menu switch: pictures pause until the new page is in (pjax:complete;
+    // at most 10 s if it never comes), and everything taken meanwhile is void.
+    on(document, 'pjax:send', () => {
+      resetLens();
+      lens.switching = performance.now() + 10000;
+    });
     on(document, 'pjax:complete', () => {
+      lens.switching = 0;
+      resetLens();
       watchLens();
       fitLens().catch(() => {});
       scheduleLensPicture(LENS_QUIET);
@@ -1225,10 +1296,17 @@ if (root.dataset.liquidGlass !== 'upstream') {
     });
     watchLens();
     fitLens().catch(error => console.warn('Liquid Glass: lens maps failed.', error));
-    // The first pictures wait for the page and its fonts to finish loading.
-    const begin = () => (document.fonts?.ready || Promise.resolve()).then(() => scheduleLensPicture(600));
-    if (document.readyState === 'complete') begin();
-    else window.addEventListener('load', begin, { once: true });
+    // Start as soon as the page is laid out (fonts get at most 1.5 s), not at
+    // window load, which slow external images can hold back for many
+    // seconds. Once everything has loaded, the pictures are retaken.
+    Promise.race([document.fonts?.ready, new Promise(done => setTimeout(done, 1500))])
+      .then(() => scheduleLensPicture(300));
+    const loaded = () => {
+      if (!lens) return;
+      lens.tiles.forEach(tile => { tile.stale = true; });
+      scheduleLensPicture();
+    };
+    if (document.readyState !== 'complete') window.addEventListener('load', loaded, { once: true });
   }
 
   function boot() {
