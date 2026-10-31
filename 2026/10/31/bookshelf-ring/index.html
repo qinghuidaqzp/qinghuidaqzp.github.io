@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>一面会转的书墙 · BETTER CALL ME</title>
+<meta name="description" content="把豆瓣上标记的 159 本书做成一圈立体的书，指到哪本就翻开哪本。记一下书脊颜色是怎么来的，以及闪烁、发虚、合书卡顿这几个问题是怎么解决的。">
+<link rel="canonical" href="https://qinghuidaqzp.github.io/2026/10/31/bookshelf-ring/">
+<link rel="icon" href="/img/qzp.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Noto+Serif+SC:wght@400;600&display=swap">
+
+<link rel="stylesheet" href="/css/liquid-glass.css">
+<link rel="stylesheet" href="/css/glass-pages.css">
+<link rel="stylesheet" href="/css/qzp.css">
+
+<link rel="modulepreload" href="/vendor/liquid-glass/displacement-map.js">
+<link rel="modulepreload" href="/vendor/liquid-glass/tokens.js">
+<link rel="modulepreload" href="/vendor/liquid-glass/capabilities.js">
+<script type="module" src="/js/liquid-glass.js"></script>
+
+<meta name="generator" content="Hexo 8.1.1"><link rel="alternate" href="/atom.xml" title="BETTER CALL ME" type="application/atom+xml">
+</head>
+<body>
+
+<div id="web_bg" class="has-photo" data-no-flow aria-hidden="true"><div class="photo-bg"></div></div>
+
+<nav class="topbar" data-lg="nav" aria-label="主导航">
+  <a class="brand" href="/">QZP</a>
+  <div class="seg-track">
+    
+    <a class="seg" href="/">首页</a>
+    
+    <a class="seg is-current" href="/blog/" aria-current="page">博客</a>
+    
+    <a class="seg" href="/categories/%E5%B0%8F%E8%AF%B4/">小说</a>
+    
+    <a class="seg" href="/records/">唱片</a>
+    
+    <a class="seg" href="/posters/">电影</a>
+    
+    <a class="seg" href="/bookshelf/">书籍</a>
+    
+    <span class="seg-indicator" aria-hidden="true"></span>
+  </div>
+</nav>
+
+<main class="site-main">
+
+<article class="post panel" data-lg="reading">
+  <header class="post-head">
+    <div class="post-kicker">
+      <a class="pill" href="/categories/article/">article</a>
+      <time datetime="2026-10-31T12:00:00.000Z">2026 · 10 · 31</time>
+    </div>
+    <h1 class="post-title">一面会转的书墙</h1>
+    <p class="post-dek">把豆瓣上标记的 159 本书做成一圈立体的书，指到哪本就翻开哪本。记一下书脊颜色是怎么来的，以及闪烁、发虚、合书卡顿这几个问题是怎么解决的。</p>
+    <p class="post-stats">约 1,183 字 · 读完约 3 分钟</p>
+  </header>
+
+  <div class="prose">
+    <p><img src="/img/posts/redesign/bookshelf.webp" alt="书墙：159 本书围成一圈慢慢转"></p>
+<p><a href="/bookshelf/">书籍页</a>把我在豆瓣上标记的书——读过 124 本、在读 6 本、想读 29 本——做成一圈立体的书，慢慢地转。鼠标指到一本，它停下来，封面沿着书脊翻开，书页上写着这本书的信息。</p>
+<span id="more"></span>
+
+<h2 id="数据"><a href="#数据" class="headerlink" title="数据"></a>数据</h2><p>书单来自 mouban（一个豆瓣数据的镜像，hexo-douban 插件用的也是它），按「在读、读过、想读」取下来。</p>
+<p>每本书除了封面，还需要两样东西：</p>
+<ul>
+<li><strong>书脊颜色</strong>：取封面左边一条（最像书脊的位置）和整张图的平均色，混在一起，再压暗一点；</li>
+<li><strong>开本</strong>：记下封面的宽高比，书块按真实比例做，不是每本都一样大。</li>
+</ul>
+<p>这两样都要读封面的像素，可豆瓣的图片服务器不允许网页读像素，所以放在生成数据的脚本里算好，和书单一起存进 JSON。结果缓存起来，以后重跑只算新加的书。</p>
+<h2 id="一本立体的书"><a href="#一本立体的书" class="headerlink" title="一本立体的书"></a>一本立体的书</h2><p>每本书都是一个 3D 的书块：正面是封面，侧面是书脊，另一侧是书页的切口，上面是书顶。封面本身是一个按钮，以左边的书脊为轴翻开；翻开后的第一页写着书名、作者、出版社、评分、我的短评，还有去豆瓣的链接。</p>
+<p>一开始也试过用平面的封面图来转，省事，也更快，但转起来就是一张张纸片，不像书。最后还是保留了立体的书块。</p>
+<p><img src="/img/posts/redesign/bookshelf-open.webp" alt="指到一本书，封面沿书脊翻开"></p>
+<h2 id="环"><a href="#环" class="headerlink" title="环"></a>环</h2><ul>
+<li>书排在一个椭圆上：正下方最近、最大，正上方最远、最小；</li>
+<li>每本书在环上占自身宽度的 74%，相邻的书会叠一点。这个数字试了好几次：太挤，同一屏要画的书太多，转起来会卡；太松又显得稀；</li>
+<li>书多到一圈放不下时，环就变成传送带：接缝在正上方，书在那里淡出、换成下一本，一圈一圈轮流展示所有的书；</li>
+<li>可以拖动、用滚轮、用方向键转；Tab 到一本书就翻开，Esc 合上；上面的分区按钮可以只看在读、读过或者想读。</li>
+</ul>
+<h2 id="三个问题"><a href="#三个问题" class="headerlink" title="三个问题"></a>三个问题</h2><p><strong>转到下面的书会闪。</strong> 是两个原因叠在一起：</p>
+<ol>
+<li>封面还没加载好，书就已经转到眼前了。现在在后台按离当前位置由近到远，提前加载并解码封面，书转出来的时候图已经准备好。</li>
+<li>前后遮挡排错了。原来按深度取整来决定谁压谁，正下方一带的几本书深度几乎一样，转的时候顺序来回翻，看上去就是闪。改成按离正下方隔了几本书来排，每半本一级、左边压右边，相邻的两本永远不会同级。</li>
+</ol>
+<p>另外，层级和透明度只在真的变了的时候才写：每帧给几十本书改层级，浏览器得一直重排图层。</p>
+<p><strong>翻开以后字发虚。</strong> 环上的书很小，翻开时是把小书块放大好几倍，字和封面都是按小尺寸画的，一放大自然就糊。现在翻开之前，先把书块换成放大后的实际尺寸来排版，同时把缩放比例换算回去，画面不会跳；动画结束时缩放正好是 1，再让浏览器按最终大小重新渲染一次，就清楚了。</p>
+<p><strong>合上的时候卡一下。</strong> 翻开用的是带回弹的弹簧，好看；可合上时也回弹，封面会先冲进书里再弹出来，看起来就像卡了一下。现在合上分两步：封面先用不回弹的减速曲线合上（0.45 秒），合好了，书再用临界阻尼的弹簧缩回环上——从零开始加速、平滑减速、不冲过头。</p>
+<h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><p>也给书墙试过几套背景：暖木书房、米白纸张、夜读台灯，还有一套是把这 159 本书的书脊颜色拼成书架再虚化。最后还是留着原来的珍珠色。</p>
+
+  </div>
+
+  <footer class="post-foot">
+    
+    <div class="post-tags">
+      <a class="pill" href="/tags/%E5%8D%9A%E5%AE%A2/"># 博客</a><a class="pill" href="/tags/%E5%89%8D%E7%AB%AF/"># 前端</a><a class="pill" href="/tags/%E8%AF%BB%E4%B9%A6/"># 读书</a>
+    </div>
+    
+    <nav class="post-nav" aria-label="上一篇和下一篇">
+      
+      <a class="post-nav-item" data-lg="card" href="/2026/10/31/%E6%96%AD%E7%BA%B1-003/"><small>较新的</small><span>断纱 · 第三章　高铁</span></a>
+      <a class="post-nav-item is-next" data-lg="card" href="/2026/10/31/%E6%96%AD%E7%BA%B1-002/"><small>较早的</small><span>断纱 · 第二章　十一路</span></a>
+    </nav>
+  </footer>
+</article>
+
+<section class="comments panel" data-lg="card" aria-label="评论">
+  <h2 class="comments-title">评论</h2>
+  <script src="https://giscus.app/client.js"
+    data-repo="qinghuidaqzp/qinghuidaqzp.github.io"
+    data-repo-id="R_kgDOQY7TBa"
+    data-category="General"
+    data-category-id="DIC_kwDOQY7TbM4Czfhc"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="bottom"
+    data-theme="transparent_dark"
+    data-lang="zh-CN"
+    data-loading="lazy"
+    crossorigin="anonymous"
+    async></script>
+</section>
+
+
+
+</main>
+<footer class="site-foot">
+  <span>© 2026 QZP</span>
+  <a href="/archives/">归档</a>
+  <a href="/link/">友链</a>
+  <a href="/atom.xml">RSS</a>
+  <a href="https://github.com/qinghuidaqzp" target="_blank" rel="noopener">GitHub</a><a href="https://x.com/haiyou89" target="_blank" rel="noopener">X</a><a href="https://www.instagram.com/qzp117" target="_blank" rel="noopener">Instagram</a><a href="https://linux.do/u/caery" target="_blank" rel="noopener">LINUX DO</a>
+</footer>
+
+<script src="/js/glass-pages.js"></script>
+</body>
+</html>

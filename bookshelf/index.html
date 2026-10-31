@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QZP · 书籍</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Noto+Serif+SC:wght@600&display=swap">
+<link rel="preconnect" href="https://minio.mythsman.com">
+<link rel="stylesheet" href="/css/liquid-glass.css">
+<link rel="stylesheet" href="/css/glass-pages.css">
+<link rel="modulepreload" href="/vendor/liquid-glass/displacement-map.js">
+<link rel="modulepreload" href="/vendor/liquid-glass/tokens.js">
+<link rel="modulepreload" href="/vendor/liquid-glass/capabilities.js">
+<script type="module" src="/js/liquid-glass.js"></script>
+<style>
+  /* 书架（Reading Library）：每本书是一个立体书块，正面是它自己的封面，围成一圈慢慢转；
+     指到一本书，封面沿书脊翻开，书页上是这本书的信息。
+     数据由 tools/books-data.js 生成在 books.json（书脊颜色和开本取自封面） */
+  body { overflow: hidden; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* 不用 fixed：fixed 会自成层叠上下文，书就没法和中间的标题比前后 */
+  .ring { position: absolute; left: 0; top: 0; width: 100%; height: 100vh; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .ring.is-dragging { cursor: grabbing; }
+
+  /* 中间的标题 */
+  .hub {
+    position: fixed; left: 50%; top: 53%; z-index: 600; /* 书（800 以上）都在标题前面；环和标题本来就不重叠 */
+    transform: translate(-50%, -50%);
+    width: min(520px, 70vw); text-align: center;
+    pointer-events: none;
+  }
+  .hub h1 {
+    margin: 0; font-weight: 700; letter-spacing: -.035em; line-height: 1;
+    font-size: clamp(30px, 5vw, 60px);
+  }
+  .hub h1 span { font-family: 'Noto Serif SC', serif; font-weight: 600; letter-spacing: .02em; }
+  .stat { margin: 10px 0 14px; font-size: 13px; color: var(--ink-soft); }
+  .chips {
+    position: relative; display: inline-flex; padding: 4px; border-radius: 999px;
+    pointer-events: auto;
+    background: rgba(255, 255, 255, .22);
+    border: 1px double rgba(51, 51, 51, .08);
+    -webkit-backdrop-filter: blur(2.8px) saturate(160%); backdrop-filter: blur(2.8px) saturate(160%);
+    box-shadow: inset 1.5px -1.5px 1px -1px rgba(255, 255, 255, .92), inset -1.5px 1.5px 1px -1px rgba(255, 255, 255, .9), inset 0 0 3px rgba(15, 23, 42, .2), 0 10px 24px rgba(15, 23, 42, .1);
+  }
+  .chip {
+    position: relative; z-index: 2; height: 30px; padding: 0 13px; border: 0; border-radius: 999px;
+    background: none; color: var(--ink); font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer;
+    opacity: .55; transition: opacity .25s var(--spring);
+  }
+  .chip:hover { opacity: .85; }
+  .chip[aria-pressed='true'] { opacity: 1; font-weight: 600; }
+  .chip:focus-visible { outline: 2px solid rgba(10, 132, 255, .7); outline-offset: -2px; }
+  .chip-indicator {
+    position: absolute; top: 4px; left: 0; z-index: 1; height: 30px; width: 0; border-radius: 999px; pointer-events: none;
+    background: rgba(255, 255, 255, .6);
+    box-shadow: inset 1.5px -1.5px 1px -1px rgba(255, 255, 255, .95), inset -1.5px 1.5px 1px -1px rgba(255, 255, 255, .9), 0 4px 12px rgba(15, 23, 42, .1);
+    transition: transform .35s var(--spring), width .35s var(--spring);
+  }
+
+  /* 一本书：x 是封面宽 --w、y 是高 --h、z 是厚度 --t；书脊在左边，封面以书脊为轴翻开。
+     left/top 各退一半，translate 直接对准环上的点 */
+  .bk {
+    --w: var(--B);
+    --h: calc(var(--B) * var(--r));
+    --t: calc(var(--B) * var(--k));
+    position: absolute; left: calc(var(--w) / -2); top: calc(var(--h) / -2);
+    width: var(--w); height: var(--h);
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  /* 接缝处淡出用每个面自己的透明度（--a）：整本书设透明度会把立体书压成平面，转到那里会跳闪 */
+  .bk > * { position: absolute; display: block; backface-visibility: hidden; opacity: var(--a, 1); }
+  /* 合上时转来转去也看不到的面（封底、书顶、内页、封面内侧）先不画，图层少一半；翻开时才加上 */
+  .bk:not(.is-full) > .bk-back,
+  .bk:not(.is-full) > .bk-top,
+  .bk:not(.is-full) > .bk-page,
+  .bk:not(.is-full) .bk-cover .inside { display: none; }
+  .bk:not(.is-full) > .bk-cover { box-shadow: 0 16px 26px rgba(30, 30, 60, .22), 0 3px 8px rgba(30, 30, 60, .14); }
+  .bk-back {
+    inset: 0; border-radius: 2px 4px 4px 2px;
+    transform: translateZ(calc(var(--t) / -2)) rotateY(180deg);
+    background: rgb(var(--c));
+    box-shadow: 0 18px 30px rgba(30, 30, 60, .22), 0 4px 8px rgba(30, 30, 60, .14);
+  }
+  .bk-spine {
+    top: 0; left: calc(var(--t) / -2); width: var(--t); height: 100%;
+    transform: rotateY(-90deg);
+    background: linear-gradient(90deg, rgba(0, 0, 0, .25), rgba(255, 255, 255, .12) 40%, rgba(0, 0, 0, .2)), rgb(var(--c));
+  }
+  .bk-edge { /* 右边露出来的书页 */
+    top: 2px; left: calc(var(--w) - var(--t) / 2); width: var(--t); height: calc(100% - 4px);
+    transform: rotateY(90deg);
+    background: repeating-linear-gradient(90deg, #f6f1e4 0 1px, #e2dac6 1px 2px);
+  }
+  .bk-top {
+    left: 0; top: calc(var(--t) / -2 + 2px); width: calc(100% - 3px); height: var(--t);
+    transform: rotateX(90deg);
+    background: repeating-linear-gradient(0deg, #f6f1e4 0 1px, #e2dac6 1px 2px);
+  }
+  /* 第一页：封面翻开后看到的信息 */
+  .bk-page {
+    inset: 2px 3px 2px 1px;
+    transform: translateZ(calc(var(--t) / 2 - 1px));
+    padding: 9% 9% 8%;
+    overflow: hidden;
+    background: #fbf8f1;
+    color: #26252b;
+    font-size: calc(var(--B) * .072);
+    line-height: 1.45;
+    text-align: left;
+    box-shadow: inset 6px 0 8px -6px rgba(0, 0, 0, .25);
+  }
+  .bk-page h3 { margin: 0 0 .3em; font-size: 1.55em; line-height: 1.15; letter-spacing: -.01em; }
+  .bk-page .by { margin: 0 0 .7em; color: #6b6870; }
+  .bk-page .rate { margin: 0; color: #e08a00; letter-spacing: .12em; }
+  .bk-page .note { margin: .5em 0 .7em; max-height: 6.2em; overflow: hidden; }
+  .bk-page .tags { display: flex; flex-wrap: wrap; gap: .35em; margin: 0 0 .8em; }
+  .bk-page .tags span { padding: .15em .6em; border-radius: 999px; background: #eee9dd; color: #55525a; font-size: .85em; }
+  .bk-page a { color: #2e963d; font-weight: 600; text-decoration: none; }
+  .bk-page a:focus-visible { outline: 2px solid rgba(10, 132, 255, .7); outline-offset: 2px; }
+  /* 封面：按钮本身，以左边（书脊）为轴翻开 */
+  .bk-cover {
+    inset: 0; padding: 0; border: 0; border-radius: 2px 4px 4px 2px;
+    background: rgb(var(--c));
+    cursor: pointer;
+    transform-origin: left center;
+    transform: translateZ(calc(var(--t) / 2)) rotateY(0deg);
+    transition: transform .45s cubic-bezier(.4, 0, .2, 1); /* 合上：顺滑减速，不回弹（回弹会冲进书里再弹回来，像卡了一下） */
+    -webkit-tap-highlight-color: transparent;
+    backface-visibility: visible;
+  }
+  .bk-cover img, .bk-cover .inside { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; backface-visibility: hidden; }
+  .bk-cover img { object-fit: cover; }
+  .bk-cover::after { /* 书脊压痕和封面光泽 */
+    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; backface-visibility: hidden;
+    background: linear-gradient(90deg, rgba(0, 0, 0, .22), rgba(255, 255, 255, .16) 3.5%, transparent 9%), linear-gradient(120deg, rgba(255, 255, 255, .16), transparent 40%);
+  }
+  .bk-cover .inside { transform: rotateY(180deg); background: rgb(var(--c)); filter: brightness(1.15) saturate(.7); }
+  .bk-cover:focus-visible { outline: 2px solid rgba(10, 132, 255, .9); outline-offset: 3px; }
+  .bk.is-full .bk-cover { transform-style: preserve-3d; }
+  .bk.is-open .bk-cover { /* 翻开：带一点回弹 */
+    transform: translateZ(calc(var(--t) / 2)) rotateY(-158deg);
+    transition: transform .8s var(--spring);
+  }
+
+  /* 手机：书太小，信息放在底部的玻璃卡片里 */
+  .info-card {
+    position: fixed; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 6000;
+    padding: 14px 16px; border-radius: 20px;
+    background: rgba(255, 255, 255, .66);
+    -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%);
+    box-shadow: inset 1.5px -1.5px 1px -1px rgba(255, 255, 255, .92), inset -1.5px 1.5px 1px -1px rgba(255, 255, 255, .9), 0 18px 40px rgba(15, 23, 42, .2);
+    font-size: 13px; line-height: 1.55;
+    transform: translateY(16px); opacity: 0; visibility: hidden;
+    transition: transform .4s var(--ease), opacity .25s, visibility 0s .4s;
+  }
+  .info-card.is-open { transform: none; opacity: 1; visibility: visible; transition: transform .4s var(--ease), opacity .25s; }
+  .info-card h3 { margin: 0 0 2px; font-size: 16px; }
+  .info-card p { margin: 0 0 4px; color: var(--ink-soft); }
+  .info-card .rate { color: #e08a00; letter-spacing: 2px; }
+  .info-card a { color: #2e963d; font-weight: 600; text-decoration: none; }
+
+  @media (max-width: 640px) {
+    .hub { top: 52%; width: 56vw; }
+    .hub h1 { font-size: 28px; }
+    .stat { font-size: 11px; margin: 6px 0 10px; }
+    .chip { padding: 0 8px; font-size: 12px; }
+    .bk-page > :not(h3) { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="web_bg" class="pearl-bg" data-no-flow aria-hidden="true"><canvas class="pearl-flow"></canvas></div>
+
+<nav class="topbar" data-lg="nav" aria-label="主导航">
+  <a class="brand" href="/">QZP</a>
+  <div class="seg-track">
+    <a class="seg" href="/">首页</a>
+    <a class="seg" href="/blog/">博客</a>
+    <a class="seg" href="/categories/小说/">小说</a>
+    <a class="seg" href="/records/">唱片</a>
+    <a class="seg" href="/posters/">电影</a>
+    <a class="seg is-current" href="/bookshelf/" aria-current="page">书籍</a>
+    <span class="seg-indicator" aria-hidden="true"></span>
+  </div>
+</nav>
+
+<main>
+  <section class="ring" aria-label="书，左右拖动或用方向键转"></section>
+  <header class="hub">
+    <h1>Reading <span>书籍</span></h1>
+    <p class="stat">正在取书…</p>
+    <div class="chips" role="group" aria-label="书架分区"></div>
+  </header>
+  <aside class="info-card" aria-live="polite"></aside>
+</main>
+
+<script src="/js/glass-pages.js"></script>
+<script>
+(() => {
+  const { say, still, holdBackdrop } = GlassPages;
+  const ring = document.querySelector('.ring');
+  const stat = document.querySelector('.stat');
+  const chips = document.querySelector('.chips');
+  const card = document.querySelector('.info-card');
+  const fine = matchMedia('(hover: hover) and (pointer: fine)');
+  const SHELVES = ['在读', '读过', '想读'];
+
+  let all = [], list = [], filter = 'all';
+  let geo = { B: 100, Rx: 400, Ry: 280, cx: 0, cy: 0, slots: 30, conveyor: false };
+  let p = 0, v = 0, frame = 0, last = 0, holding = false;
+  let hovered = null, opened = null, hoverTimer = 0, leaveTimer = 0, resumeTimer = 0, paused = false, drag = null;
+  let cooldown = { item: null, until: 0 }; // 刚因为移开而合上的书，短时间内不再被悬停翻开
+
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  };
+  const stars = rate => rate ? '★'.repeat(rate) + '☆'.repeat(5 - rate) : '';
+  const hash = n => { let x = Number(n) | 0; x = Math.imul(x ^ (x >>> 16), 0x45d9f3b); x = Math.imul(x ^ (x >>> 16), 0x45d9f3b); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
+  const authorName = book => book.author.replace(/^[\[［(（【][^\]］)）】]*[\]］)）】]\s*/, '').split(/\s*\/\s*/)[0];
+  const doneWord = book => book.shelf === '想读' ? '想读' : book.shelf === '在读' ? '开始读' : '读完';
+
+  // 一本书的 DOM：书背、书脊、书页侧边、书顶、第一页（信息）、封面（按钮）
+  function makeBook(book) {
+    const node = el('div', 'bk');
+    node.style.cssText = `--r:${Math.min(1.6, Math.max(1.05, book.ratio || 1.42))};--k:${(.07 + hash(book.id) * .1).toFixed(3)};--c:${book.color.join(',')}`;
+    const page = el('div', 'bk-page');
+    page.append(el('h3', '', book.title), el('p', 'by', [authorName(book), book.press, book.year].filter(Boolean).join(' · ')));
+    if (book.rate) page.append(el('p', 'rate', stars(book.rate)));
+    if (book.comment) page.append(el('p', 'note', book.comment));
+    const tags = el('div', 'tags');
+    tags.append(el('span', '', book.shelf));
+    if (book.date) tags.append(el('span', '', `${book.date.slice(0, 7)} ${doneWord(book)}`));
+    page.append(tags);
+    const link = el('a', '', '在豆瓣查看 →');
+    link.href = `https://book.douban.com/subject/${book.id}/`;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.tabIndex = -1;
+    page.append(link);
+    const cover = el('button', 'bk-cover');
+    cover.type = 'button';
+    cover.setAttribute('aria-label', `${book.title} · ${authorName(book)}`);
+    const img = el('img');
+    img.alt = '';
+    img.decoding = 'async';
+    img.draggable = false;
+    cover.append(img, el('span', 'inside'));
+    node.append(el('span', 'bk-back'), el('span', 'bk-spine'), el('span', 'bk-edge'), el('span', 'bk-top'), page, cover);
+    return { book, node, img, cover, link, shown: false, loaded: false, openAmt: 0, openVel: 0, z: '', alpha: '', full: false, crisp: false, closedAt: 0 };
+  }
+
+  // 封面先在后台加载并解码，按离当前位置由近到远；书转出来时图已经准备好，快速转动不会闪
+  function load(item) {
+    if (item.loaded) return Promise.resolve();
+    item.loaded = true;
+    item.img.src = item.book.cover;
+    return item.img.decode().catch(() => {});
+  }
+  let warmToken = 0;
+  function warm() {
+    const token = ++warmToken, n = list.length;
+    const queue = list.map((item, j) => [item, Math.abs(((j - p) % n + n * 1.5) % n - n / 2)])
+      .sort((a, b) => a[1] - b[1]).map(([item]) => item);
+    const next = () => {
+      if (token !== warmToken) return; // 换了分区就重新排
+      const item = queue.shift();
+      if (item) load(item).then(next);
+    };
+    for (let i = 0; i < 4; i++) next(); // 同时加载 4 张
+  }
+
+  // 环的大小跟着屏幕走；书多到一圈放不下时，变成传送带，一圈轮流展示所有书。
+  // 每本书在环上占自身宽度的 74%：相邻的书叠一点、排得紧凑，又不至于同屏太多本
+  const SPACING = .74;
+  function measure() {
+    const vw = innerWidth, vh = innerHeight, small = vw <= 640;
+    const B = small ? Math.max(48, Math.min(66, vw * .15)) : Math.max(70, Math.min(118, Math.min(vw, vh) * .105));
+    const Rx = small ? vw * .39 : Math.min(vw * .40, 560);
+    const Ry = small ? vh * .31 : Math.min(vh * .33, 330);
+    const perimeter = Math.PI * (3 * (Rx + Ry) - Math.sqrt((3 * Rx + Ry) * (Rx + 3 * Ry)));
+    const fit = Math.max(8, Math.floor(perimeter / (B * SPACING)));
+    geo = { B, Rx, Ry, cx: vw / 2, cy: vh * (small ? .52 : .53), conveyor: list.length > fit, slots: Math.min(list.length, fit), small };
+    ring.style.setProperty('--B', B.toFixed(1) + 'px');
+  }
+
+  // 书 j 在环上的位置：a = 0 在正下方（最近、最大），a = ±π 在正上方（最远）
+  function pose(j) {
+    const n = list.length;
+    let u = ((j - p) % n + n) % n;
+    if (u >= n / 2) u -= n;
+    if (geo.conveyor && Math.abs(u) > geo.slots / 2) return null;
+    const a = u / geo.slots * Math.PI * 2;
+    const front = (Math.cos(a) + 1) / 2;
+    return {
+      x: geo.cx + geo.Rx * Math.sin(a), y: geo.cy + geo.Ry * Math.cos(a),
+      yaw: -Math.sin(a) * 34, scale: .82 + front * .18,
+      // 前后顺序按离正下方隔了几本书来排（每半本一级，左边压右边），相邻的书不会同级；
+      // 按深度取整的话，正下方一带深度几乎一样，转起来谁压谁会来回翻，看着就是闪
+      z: 1000 - (Math.floor(Math.abs(u) * 2) * 2 + (u > 0 ? 1 : 0)),
+      // 传送带接缝在正上方：书在那里淡出、换成下一本
+      alpha: geo.conveyor ? Math.min(1, Math.max(0, (Math.PI - Math.abs(a)) / .55)) : 1
+    };
+  }
+
+  function place(item, j) {
+    const at = pose(j);
+    const o = item.openAmt;
+    if (!at && o < .01) {
+      if (item.shown) { item.shown = false; item.node.style.display = 'none'; }
+      return;
+    }
+    if (!item.shown) { item.shown = true; item.node.style.display = ''; }
+    if (!item.loaded) load(item);
+    const base = at || { x: geo.cx, y: geo.cy, yaw: 0, scale: 1, z: 1000, alpha: 1 };
+    // 打开的书基本在原地翻开（稍微往中心靠一点），转正、放大到书页看得清；
+    // 整本书（连同往左翻开的封面）要留在屏幕里，上面让出导航
+    const big = bigScale();
+    let x = base.x, y = base.y;
+    if (o > 0) {
+      const W = geo.B * big, H = W * Math.min(1.6, Math.max(1.05, item.book.ratio || 1.42));
+      const ox = Math.min(innerWidth - 16 - W / 2, Math.max(16 + W * 1.43, base.x + (geo.cx - base.x) * .15));
+      const oy = Math.min(innerHeight - 16 - H / 2, Math.max(72 + H / 2, base.y + (geo.cy - base.y) * .15));
+      x += (ox - base.x) * o;
+      y += (oy - base.y) * o;
+    }
+    const yaw = base.yaw * (1 - o);
+    // 想显示的宽度 ÷ 书块实际的宽度。翻开的书按放大后的尺寸排版（item.full），
+    // 动画结束时缩放正好是 1，文字和封面按最终大小渲染，才清楚
+    const s = geo.B * (base.scale + (big - base.scale) * o) / (item.full ? geo.B * big : geo.B);
+    item.node.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) perspective(900px) rotateY(${yaw.toFixed(2)}deg) scale(${s.toFixed(4)})`;
+    // 层级和透明度变了才写：每帧改几十本书的层级，浏览器要一直重排图层
+    const z = String(o > .01 ? 5000 : base.z);
+    if (z !== item.z) item.node.style.zIndex = item.z = z;
+    const alpha = Math.max(base.alpha, o) > .995 ? '' : Math.max(base.alpha, o).toFixed(2);
+    if (alpha !== item.alpha) {
+      item.alpha = alpha;
+      if (alpha) item.node.style.setProperty('--a', alpha);
+      else item.node.style.removeProperty('--a');
+    }
+  }
+  const bigScale = () => geo.small ? 1.7 : Math.max(1.6, Math.min(2.6, 210 / geo.B)); // 电脑上翻开约 210px 宽，书页字约 15px
+
+  function tick(now) {
+    const dt = Math.min(.05, (now - last) / 1000);
+    last = now;
+    const base = list.length > geo.slots ? .45 : list.length / 80; // 每秒转过几本
+    const goal = still.matches || paused || opened ? 0 : base;
+    if (!drag) {
+      v += (goal - v) * (1 - Math.exp(-dt * 2.4));
+      p += v * dt;
+    }
+    let animating = false;
+    list.forEach((item, j) => {
+      // 合上分两步：封面先合（书停在原地 COVER_MS），合好了书再缩回环上
+      const holdOpen = item.full && item !== opened && now - item.closedAt < COVER_MS;
+      const target = item === opened || holdOpen ? 1 : 0;
+      if (item.full && item !== opened) animating = true;
+      // 翻开 / 收回用临界阻尼弹簧：起步从零加速、平滑减速、不冲过头，约 0.7 秒到位
+      if (Math.abs(item.openAmt - target) > .001 || Math.abs(item.openVel) > .01) {
+        for (let t = 0; t < dt; t += 1 / 120) {
+          const h = Math.min(1 / 120, dt - t);
+          item.openVel += (-169 * (item.openAmt - target) - 26 * item.openVel) * h;
+          item.openAmt += item.openVel * h;
+        }
+        if (Math.abs(item.openAmt - target) <= .001 && Math.abs(item.openVel) <= .01) {
+          item.openAmt = target;
+          item.openVel = 0;
+        }
+        animating = true;
+      }
+      place(item, j);
+      // 翻开动画走完：去掉 will-change，让浏览器按最终大小重新渲染这本书
+      if (item === opened && item.openAmt === 1 && !item.crisp) {
+        item.crisp = true;
+        item.node.style.willChange = 'auto';
+      }
+      // 书完全回到环上以后，才换回小尺寸、收起看不到的面
+      if (item.full && item !== opened && item.openAmt === 0) makeFull(item, false);
+    });
+    const spinning = Boolean(drag) || Math.abs(v) > .002 || goal > 0;
+    if (spinning !== holding) holdBackdrop(holding = spinning); // 转动时背景先停，省下玻璃折射的重算
+    frame = spinning || animating ? requestAnimationFrame(tick) : 0;
+  }
+  function wake() {
+    if (frame) return;
+    last = performance.now();
+    frame = requestAnimationFrame(tick);
+  }
+
+  // 打开 / 合上
+  function showCard(item) {
+    const { book } = item;
+    card.replaceChildren();
+    card.append(el('h3', '', book.title), el('p', '', [book.author, book.translator && `${book.translator} 译`, book.press, book.year].filter(Boolean).join(' · ')));
+    if (book.rate) card.append(el('p', 'rate', stars(book.rate)));
+    if (book.comment) card.append(el('p', '', book.comment));
+    card.append(el('p', '', `${book.shelf}${book.date ? ' · ' + book.date + ' ' + doneWord(book) : ''}`));
+    const link = el('a', '', '在豆瓣查看 →');
+    link.href = item.link.href;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    card.append(link);
+    card.classList.add('is-open');
+  }
+  // 翻开前先把书块换成放大后的尺寸（缩放同步换算，画面不跳），加上封底、内页这些面
+  function makeFull(item, full) {
+    if (item.full === full) return;
+    item.full = full;
+    item.node.classList.toggle('is-full', full);
+    if (full) item.node.style.setProperty('--B', (geo.B * bigScale()).toFixed(1) + 'px');
+    else item.node.style.removeProperty('--B');
+    place(item, list.indexOf(item));
+  }
+  const COVER_MS = 450; // 和 .bk-cover 合上的过渡时长一致
+  function open(item) {
+    if (opened === item) return;
+    close();
+    opened = item;
+    makeFull(item, true);
+    void item.node.offsetWidth; // 先按新尺寸排好，封面的翻开过渡才从合上的状态开始
+    item.node.style.willChange = 'transform';
+    item.crisp = false;
+    item.node.classList.add('is-open');
+    item.link.tabIndex = 0;
+    if (geo.small) showCard(item);
+    wake();
+  }
+  function close() {
+    if (!opened) return;
+    const item = opened;
+    opened = null;
+    item.node.classList.remove('is-open');
+    item.node.style.willChange = 'transform';
+    item.crisp = false;
+    item.link.tabIndex = -1;
+    card.classList.remove('is-open');
+    item.closedAt = performance.now(); // tick() 里先等封面合上，再让书回到环上
+    wake();
+  }
+  const itemOf = target => target instanceof Element && list.find(item => item.node === target.closest('.bk'));
+
+  // 鼠标：指到书上转盘先停，停留一下就翻开；移开就合上、过一会儿继续转
+  ring.addEventListener('pointerover', e => {
+    if (!fine.matches || drag) return;
+    const item = itemOf(e.target);
+    if (!item) return;
+    clearTimeout(leaveTimer); clearTimeout(resumeTimer);
+    paused = true;
+    hovered = item;
+    clearTimeout(hoverTimer);
+    if (cooldown.item !== item || performance.now() > cooldown.until) {
+      hoverTimer = setTimeout(() => { if (hovered === item) open(item); }, 180);
+    }
+    wake();
+  });
+  ring.addEventListener('pointerout', e => {
+    if (!fine.matches) return;
+    const from = itemOf(e.target), to = itemOf(e.relatedTarget);
+    if (!from || from === to) return;
+    hovered = null;
+    clearTimeout(hoverTimer);
+    leaveTimer = setTimeout(() => {
+      if (hovered) return;
+      if (opened === from) cooldown = { item: from, until: performance.now() + 600 };
+      close();
+    }, 220);
+    resumeTimer = setTimeout(() => { if (!hovered) { paused = false; wake(); } }, 900);
+  });
+  // 点击（手机就靠这个）：点书翻开 / 合上，点空白处合上
+  ring.addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    const item = itemOf(e.target);
+    if (!item) { close(); paused = false; wake(); return; }
+    if (opened === item && !fine.matches) { close(); paused = false; }
+    else { paused = true; open(item); }
+    wake();
+  });
+  // 拖动转盘
+  ring.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || e.target.closest('a')) return;
+    drag = { id: e.pointerId, x: e.clientX, p, moved: false, lastX: e.clientX, lastT: performance.now(), v: 0 };
+  });
+  ring.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    if (!drag.moved) {
+      if (Math.abs(dx) < 6) return;
+      drag.moved = true;
+      ring.setPointerCapture(drag.id);
+      ring.classList.add('is-dragging');
+      close();
+    }
+    const unit = geo.B * SPACING, now = performance.now();
+    p = drag.p - dx / unit;
+    drag.v = drag.v * .6 + (-(e.clientX - drag.lastX) / unit / Math.max(.001, (now - drag.lastT) / 1000)) * .4;
+    drag.lastX = e.clientX;
+    drag.lastT = now;
+    wake();
+  });
+  const endDrag = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { moved, v: fling } = drag;
+    drag = null;
+    ring.classList.remove('is-dragging');
+    if (moved) {
+      v = Math.max(-12, Math.min(12, fling));
+      paused = false;
+      // 拖完的那次 click 不要当成点书
+      ring.addEventListener('click', e => e.stopImmediatePropagation(), { capture: true, once: true });
+      wake();
+    }
+  };
+  ring.addEventListener('pointerup', endDrag);
+  ring.addEventListener('pointercancel', endDrag);
+  // 滚轮转盘
+  addEventListener('wheel', e => {
+    if (!list.length) return;
+    e.preventDefault();
+    close();
+    paused = false;
+    v += (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) * .012;
+    v = Math.max(-12, Math.min(12, v));
+    wake();
+  }, { passive: false });
+  // 键盘：方向键转，Tab 到一本书就翻开，Esc 合上
+  addEventListener('keydown', e => {
+    if (!list.length || (e.target instanceof Element && e.target.closest('.topbar, .chips'))) return;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      close();
+      v += e.key === 'ArrowRight' ? 3 : -3;
+      wake();
+    } else if (e.key === 'Escape') { close(); paused = false; wake(); }
+  });
+  ring.addEventListener('focusin', e => {
+    const item = itemOf(e.target);
+    if (item && e.target === item.cover) { paused = true; open(item); }
+  });
+
+  // 分区
+  function build() {
+    close();
+    ring.replaceChildren();
+    list = all.filter(item => filter === 'all' || item.book.shelf === filter);
+    list.forEach(item => { item.shown = true; item.openAmt = 0; ring.append(item.node); });
+    p = 0;
+    measure();
+    list.forEach(place);
+    warm();
+    const count = shelf => all.filter(item => item.book.shelf === shelf).length;
+    stat.textContent = filter === 'all'
+      ? `${SHELVES.map(shelf => `${shelf} ${count(shelf)}`).join(' · ')}${fine.matches ? ' · 指到一本书把它翻开' : ' · 点一本书把它翻开'}`
+      : `${count(filter)} 本`;
+    wake();
+  }
+  function buildChips() {
+    const items = [['all', '全部'], ...SHELVES.map(shelf => [shelf, shelf])];
+    const indicator = el('span', 'chip-indicator');
+    indicator.setAttribute('aria-hidden', 'true');
+    const buttons = items.map(([key, label]) => {
+      const button = el('button', 'chip', label);
+      button.type = 'button';
+      button.dataset.key = key;
+      button.setAttribute('aria-pressed', String(key === filter));
+      return button;
+    });
+    chips.replaceChildren(...buttons, indicator);
+    const placeChip = (animate = true) => {
+      const on = buttons.find(b => b.getAttribute('aria-pressed') === 'true');
+      if (!animate) indicator.style.transition = 'none';
+      indicator.style.width = on.offsetWidth + 'px';
+      indicator.style.transform = `translateX(${on.offsetLeft}px)`;
+      if (!animate) { void indicator.offsetWidth; indicator.style.transition = ''; }
+    };
+    chips.addEventListener('click', e => {
+      const button = e.target.closest('.chip');
+      if (!button || button.dataset.key === filter) return;
+      buttons.forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+      placeChip();
+      filter = button.dataset.key;
+      build();
+    });
+    document.fonts?.ready.then(() => placeChip(false));
+    placeChip(false);
+  }
+
+  addEventListener('resize', () => {
+    measure();
+    list.forEach(item => { if (item.full) item.node.style.setProperty('--B', (geo.B * bigScale()).toFixed(1) + 'px'); });
+    list.forEach(place);
+  });
+  still.addEventListener('change', wake);
+
+  fetch('/bookshelf/books.json')
+    .then(res => { if (!res.ok) throw new Error(res.status); return res.json(); })
+    .then(data => {
+      all = data.map(makeBook);
+      buildChips();
+      build();
+    })
+    .catch(() => {
+      stat.textContent = '书还没取到';
+      say('书架数据没加载出来', 0);
+    });
+})();
+</script>
+</body>
+</html>

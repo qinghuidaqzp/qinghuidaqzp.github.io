@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>把博客改成液态玻璃：从 Butterfly 到自己写一套主题 · BETTER CALL ME</title>
+<meta name="description" content="首页拼贴封面、液态玻璃导航和 Dock、照片背景、文章星图和 3D 跑道——这次把博客从 Butterfly 换成了自己写的主题，记一下做了什么、踩了哪些坑。">
+<link rel="canonical" href="https://qinghuidaqzp.github.io/2026/10/31/blog-redesign-liquid-glass/">
+<link rel="icon" href="/img/qzp.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Noto+Serif+SC:wght@400;600&display=swap">
+
+<link rel="stylesheet" href="/css/liquid-glass.css">
+<link rel="stylesheet" href="/css/glass-pages.css">
+<link rel="stylesheet" href="/css/qzp.css">
+
+<link rel="modulepreload" href="/vendor/liquid-glass/displacement-map.js">
+<link rel="modulepreload" href="/vendor/liquid-glass/tokens.js">
+<link rel="modulepreload" href="/vendor/liquid-glass/capabilities.js">
+<script type="module" src="/js/liquid-glass.js"></script>
+
+<meta name="generator" content="Hexo 8.1.1"><link rel="alternate" href="/atom.xml" title="BETTER CALL ME" type="application/atom+xml">
+</head>
+<body>
+
+<div id="web_bg" class="has-photo" data-no-flow aria-hidden="true"><div class="photo-bg"></div></div>
+
+<nav class="topbar" data-lg="nav" aria-label="主导航">
+  <a class="brand" href="/">QZP</a>
+  <div class="seg-track">
+    
+    <a class="seg" href="/">首页</a>
+    
+    <a class="seg is-current" href="/blog/" aria-current="page">博客</a>
+    
+    <a class="seg" href="/categories/%E5%B0%8F%E8%AF%B4/">小说</a>
+    
+    <a class="seg" href="/records/">唱片</a>
+    
+    <a class="seg" href="/posters/">电影</a>
+    
+    <a class="seg" href="/bookshelf/">书籍</a>
+    
+    <span class="seg-indicator" aria-hidden="true"></span>
+  </div>
+</nav>
+
+<main class="site-main">
+
+<article class="post panel" data-lg="reading">
+  <header class="post-head">
+    <div class="post-kicker">
+      <a class="pill" href="/categories/article/">article</a>
+      <time datetime="2026-10-31T12:20:00.000Z">2026 · 10 · 31</time>
+    </div>
+    <h1 class="post-title">把博客改成液态玻璃：从 Butterfly 到自己写一套主题</h1>
+    <p class="post-dek">首页拼贴封面、液态玻璃导航和 Dock、照片背景、文章星图和 3D 跑道——这次把博客从 Butterfly 换成了自己写的主题，记一下做了什么、踩了哪些坑。</p>
+    <p class="post-stats">约 2,199 字 · 读完约 5 分钟</p>
+  </header>
+
+  <div class="prose">
+    <p><img src="/img/posts/redesign/home.webp" alt="首页：积云照片上的拼贴封面"></p>
+<p>这个博客一直用的是 Hexo + Butterfly。前阵子我先给网站加了几个独立页面：唱片架、电影海报墙、一面会转的书墙。做完回头一看，博客本身和它们完全不像同一个网站。与其一点点修，不如自己写一套主题。</p>
+<span id="more"></span>
+
+<h2 id="先做了一个封面"><a href="#先做了一个封面" class="headerlink" title="先做了一个封面"></a>先做了一个封面</h2><p>起点是看到 <a target="_blank" rel="noopener" href="https://elliothu.me/">elliothu.me</a> 那种大封面首页：打开不是文章列表，而是一张桌面，上面摊着各种东西。我的版本是这样：</p>
+<ul>
+<li>一张黄色便利贴写着 BETTER CALL ME，这是博客的名字，点进去就是博客；</li>
+<li>一本绿色的书（书籍）、一张露出黑胶的唱片（唱片架）、夹着回形针的手稿《断纱》（小说）、一张拍立得（2025 年拍的日落）、一张电影票根、一个会转的地球仪；</li>
+<li>每个物件都能拖来拖去，点一下进到对应的页面；</li>
+<li>最底下是一条 Dock：博客、小说、电影、全息地球、唱片，再加 X、GitHub、Instagram 和 RSS。鼠标划过时图标像 macOS 那样连续放大。</li>
+</ul>
+<p>背景是我自己拍的一张积云。原图 5184px 宽，顶部有手机加的哈苏水印，裁掉以后导出三份：桌面用 2560px，高清屏和大屏用 3840px，手机用一张以塔为中心裁出来的竖图——竖屏手机如果用横图，会被拉大好几倍，再清楚的照片也会糊。背景会很慢地推镜，70 秒一个来回。</p>
+<h2 id="液态玻璃"><a href="#液态玻璃" class="headerlink" title="液态玻璃"></a>液态玻璃</h2><p>导航、Dock、卡片都做成了「液态玻璃」：不只是把背后模糊掉，玻璃的边缘会像真的玻璃一样，把后面的画面折弯、放大一点。做法参考了两个开源项目：</p>
+<ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/xiaojiaenen/liquid-glass">xiaojiaenen&#x2F;liquid-glass</a>：按玻璃的形状生成位移贴图和高光贴图，用 SVG 滤镜（feDisplacementMap）当 <code>backdrop-filter</code>，让背后的画面在边缘弯折；</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/LGOS-Studio/LiquidGlass">LGOS-Studio&#x2F;LiquidGlass</a>：材质部分——对角线上的两道高光边、一圈内阴影显出厚度、一圈模糊的光环。</li>
+</ul>
+<p>几个取舍：</p>
+<ul>
+<li>很长的面板（比如文章正文）不做折射，只用磨砂。几千像素高的面板生成位移贴图太慢，滚动时也重。</li>
+<li>iPhone 上的浏览器都是 WebKit 内核，不支持把 SVG 滤镜当 <code>backdrop-filter</code>，在那里自动退回 CSS 毛玻璃。</li>
+<li>导航里的选中项是一颗玻璃胶囊，切换时沿着弹簧曲线滑过去。</li>
+</ul>
+<h2 id="自己的主题"><a href="#自己的主题" class="headerlink" title="自己的主题"></a>自己的主题</h2><p>新主题叫 qzp，用 EJS 写模板，其实没做太多事：</p>
+<ul>
+<li>网站首页 <code>/</code> 是上面那张封面（一个手写的独立页面），文章列表挪到了 <code>/blog/</code>；</li>
+<li>所有页面同一条导航：首页、博客、小说、唱片、电影、书籍；</li>
+<li>博客这边的背景是 2025 年拍的日落，照片偏暗，所以模块都用深色透明玻璃配白字；</li>
+<li>小说章节用宋体排版，底部有上一章、下一章；</li>
+<li>评论用 giscus，订阅用 RSS（hexo-generator-feed）。</li>
+</ul>
+<p>Butterfly 还装着，想换回去，改一行配置就行。</p>
+<h2 id="博客首屏：一张星图"><a href="#博客首屏：一张星图" class="headerlink" title="博客首屏：一张星图"></a>博客首屏：一张星图</h2><p><img src="/img/posts/redesign/blog-atlas.webp" alt="博客首屏：竖排标题、编号目录，和玻璃面板里的星图"></p>
+<p>这一块受了 Shopify Editions 的启发——它的首页是一张知识网络图。我的文章不多（写这篇之前只有 6 篇），只画文章会很空，所以把唱片、电影、书籍也挂了上去：</p>
+<ul>
+<li>中间一个原点，连着六个分区：文章的几个分类，加上唱片、电影、书籍；</li>
+<li>文章挂在自己的分类上，标签把相关的文章牵在一起；唱片、电影、书籍各挂一圈真实的封面（30 张专辑、最近看的 36 部电影、最近读的 30 本书），96 个封面拼成一张 90KB 的图集，一次请求就够；</li>
+<li>布局是一个很小的力导向模拟：弹簧把每个点拉向自己的分区，点和点之间互相推开，分区钉在一个椭圆上；</li>
+<li>悬停会点亮一整簇，并显示详情（封面、年份、作者、评分、我的短评）；节点可以拖，点击打开。</li>
+</ul>
+<p>左边是竖排的大标题和一列带编号的目录，悬停目录也会点亮星图里对应的分区。</p>
+<h2 id="文章列表是一条跑道"><a href="#文章列表是一条跑道" class="headerlink" title="文章列表是一条跑道"></a>文章列表是一条跑道</h2><p><img src="/img/posts/redesign/blog-runway.webp" alt="往下滚，文章列表倒下去成一条跑道"></p>
+<p>往下滚到文章列表时，卡片跟着滚动向后倒下去，变成一条伸向远处的 3D 跑道；继续往下滚，就沿着跑道往前走。走过脚下的卡片会淡出，跑道上按年份立着大字。</p>
+<p>实现上只是 CSS 的 <code>perspective</code> 加 <code>rotateX</code>，再把页面滚动的位置换算成倾角和往前走的距离。滚动本身还是浏览器原生的，触控板、手指、键盘、滚动条都照常能用。没有 JavaScript，或者系统里开了「减少动态」时，它就是一列普通的卡片。</p>
+<p>小说目录用的是同一条跑道，第一章在脚下，往下滚就一章一章往前读：</p>
+<p><img src="/img/posts/redesign/novel-runway.webp" alt="小说目录也是一条跑道"></p>
+<h2 id="踩过的坑"><a href="#踩过的坑" class="headerlink" title="踩过的坑"></a>踩过的坑</h2><ul>
+<li><strong>Dock 不够丝滑。</strong> 有一版放大是图标一个个跳着变大的，不如 macOS 那种连续的顺。改回按余弦曲线连续放大：每帧只改 <code>transform</code>，间距、内边距这些布局数值只在初始化和窗口变化时读一次。放大倍数从 1.6 调到 1.5，1.6 太夸张了。</li>
+<li><strong>把每个图标做成透镜。</strong> 试过让 Dock 里每个图标都折射、放大身后的照片，放大以后很难看，撤回了。现在 Dock 还是一整块几乎不着色的透明玻璃。</li>
+<li><strong>右边一条黑边。</strong> 照片明明铺满了整屏，右边却总有一条黑的。原来是系统滚动条的轨道。把滚动条隐藏掉，滚轮和触控板照样能滚。</li>
+<li><strong>白云上的字看不清。</strong> 首页的背景很亮，导航上的白字压到白云上就没了。现在导航会按身后照片的亮度自己调深浅：照片缩成 96px 宽读一次亮度，导航身后是白云就深一点，是蓝天就几乎全透明。</li>
+<li><strong>背景换了很多次。</strong> 流动的线条、好几种动态 shader 都试过，都不喜欢，最后还是用自己拍的照片。</li>
+<li><strong>旧主题的样式残留。</strong> 玻璃的样式表里还留着当初为 Butterfly 写的规则，比如把 <code>article</code> 的背景强制设成透明，新主题的面板一开始怎么设都没有底色。后来改成把玻璃画在一层单独的光学层上，不再依赖元素自己的背景。</li>
+</ul>
+<p>唱片架和书墙各写了一篇：<a href="/2026/10/31/records-coverflow/">唱片架是怎么做出来的</a>、<a href="/2026/10/31/bookshelf-ring/">一面会转的书墙</a>。</p>
+
+  </div>
+
+  <footer class="post-foot">
+    
+    <div class="post-tags">
+      <a class="pill" href="/tags/%E5%8D%9A%E5%AE%A2/"># 博客</a><a class="pill" href="/tags/%E5%89%8D%E7%AB%AF/"># 前端</a><a class="pill" href="/tags/%E6%B6%B2%E6%80%81%E7%8E%BB%E7%92%83/"># 液态玻璃</a>
+    </div>
+    
+    <nav class="post-nav" aria-label="上一篇和下一篇">
+      
+      <a class="post-nav-item" data-lg="card" href="/2026/10/31/%E6%96%AD%E7%BA%B1-015/"><small>较新的</small><span>断纱 · 第十五章　名单</span></a>
+      <a class="post-nav-item is-next" data-lg="card" href="/2026/10/31/%E6%96%AD%E7%BA%B1-014/"><small>较早的</small><span>断纱 · 第十四章　入户</span></a>
+    </nav>
+  </footer>
+</article>
+
+<section class="comments panel" data-lg="card" aria-label="评论">
+  <h2 class="comments-title">评论</h2>
+  <script src="https://giscus.app/client.js"
+    data-repo="qinghuidaqzp/qinghuidaqzp.github.io"
+    data-repo-id="R_kgDOQY7TBa"
+    data-category="General"
+    data-category-id="DIC_kwDOQY7TbM4Czfhc"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="bottom"
+    data-theme="transparent_dark"
+    data-lang="zh-CN"
+    data-loading="lazy"
+    crossorigin="anonymous"
+    async></script>
+</section>
+
+
+
+</main>
+<footer class="site-foot">
+  <span>© 2026 QZP</span>
+  <a href="/archives/">归档</a>
+  <a href="/link/">友链</a>
+  <a href="/atom.xml">RSS</a>
+  <a href="https://github.com/qinghuidaqzp" target="_blank" rel="noopener">GitHub</a><a href="https://x.com/haiyou89" target="_blank" rel="noopener">X</a><a href="https://www.instagram.com/qzp117" target="_blank" rel="noopener">Instagram</a><a href="https://linux.do/u/caery" target="_blank" rel="noopener">LINUX DO</a>
+</footer>
+
+<script src="/js/glass-pages.js"></script>
+</body>
+</html>

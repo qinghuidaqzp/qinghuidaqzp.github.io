@@ -21,7 +21,10 @@ if (root.dataset.liquidGlass !== 'upstream') {
     '.recent-post-item', '#aside-content .card-widget', READING,
     '#page-header #post-info', '#page-header #page-site-info',
     '#footer .footer-other', '#rightside > div', '#aplayer .aplayer-body',
-    '.search-dialog', '#nav .menus_item_child'
+    '.search-dialog', '#nav .menus_item_child',
+    // Standalone pages (e.g. /cover-demo/) opt in with data-lg="<kind>";
+    // Butterfly's own markup has none, so the blog is unaffected.
+    '[data-lg]'
   ].join(',');
 
   // Optics per kind. `magnify` is a separate x/y magnification encoded in
@@ -69,7 +72,7 @@ if (root.dataset.liquidGlass !== 'upstream') {
   let frame = 0;
   let glowFrame = 0;
   let pointer;
-  let lastGlow;
+  let lastGlow = [];
 
   function svg(name, attributes = {}) {
     const element = document.createElementNS(NS, name);
@@ -83,6 +86,7 @@ if (root.dataset.liquidGlass !== 'upstream') {
   filterSvg.appendChild(definitions);
 
   function kindFor(element) {
+    if (Object.hasOwn(KINDS, element.dataset.lg || '')) return element.dataset.lg;
     if (element.matches('.liquid-nav-indicator, .liquid-menu-indicator, .liquid-tab-indicator')) return 'pill';
     if (element.id === 'nav') return 'nav';
     if (element.matches('#rightside > div')) return 'dock';
@@ -427,15 +431,24 @@ if (root.dataset.liquidGlass !== 'upstream') {
   function paintGlow() {
     glowFrame = 0;
     if (!pointer || reducedMotion.matches) return;
-    const element = pointer.target.closest('.lg-surface');
-    const record = element && records.get(element);
-    if (lastGlow && lastGlow !== record) {
-      lastGlow.glow.style.setProperty('--border-glow-proximity', '0');
-      aim(lastGlow, DEFAULT_ANGLE);
+    // A surface nested in another (an icon in the dock) lights both, so the
+    // dock's rim doesn't blink off whenever the pointer crosses an icon.
+    const lit = [];
+    for (let element = pointer.target.closest('.lg-surface'); element; element = element.parentElement?.closest('.lg-surface')) {
+      const record = records.get(element);
+      if (record) lit.push(record);
     }
-    lastGlow = record;
-    if (!record) return;
-    const rect = element.getBoundingClientRect();
+    lastGlow.forEach(record => {
+      if (lit.includes(record)) return;
+      record.glow.style.setProperty('--border-glow-proximity', '0');
+      aim(record, DEFAULT_ANGLE);
+    });
+    lastGlow = lit;
+    lit.forEach(light);
+  }
+
+  function light(record) {
+    const rect = record.element.getBoundingClientRect();
     const cx = rect.width / 2;
     const cy = rect.height / 2;
     const dx = pointer.x - rect.left - cx;
@@ -454,8 +467,8 @@ if (root.dataset.liquidGlass !== 'upstream') {
       // useGlassParallax measures y-down, but the specular map is y-up, which
       // mirrors the light on diagonals upstream. Negate dy; the map takes
       // |cos|, so 0-180° covers every direction. 15° steps -> 12 cached maps.
-      const light = ((Math.atan2(-dy, dx) * 180 / Math.PI) % 180 + 180) % 180;
-      aim(record, (Math.round(light / 15) * 15) % 180);
+      const lightAngle = ((Math.atan2(-dy, dx) * 180 / Math.PI) % 180 + 180) % 180;
+      aim(record, (Math.round(lightAngle / 15) * 15) % 180);
     }
   }
 
@@ -774,7 +787,8 @@ if (root.dataset.liquidGlass !== 'upstream') {
 
   function startFlow() {
     const host = document.getElementById('web_bg');
-    if (!host || flow) return;
+    // Pages that draw their own backdrop (the cover demo) opt out with data-no-flow.
+    if (!host || flow || host.hasAttribute('data-no-flow')) return;
     const canvas = document.createElement('canvas');
     canvas.className = 'lg-flow';
     canvas.setAttribute('aria-hidden', 'true');
@@ -1482,10 +1496,12 @@ if (root.dataset.liquidGlass !== 'upstream') {
       if (!glowFrame) glowFrame = requestAnimationFrame(paintGlow);
     }, { passive: true });
     document.addEventListener('pointerout', event => {
-      if (event.relatedTarget || !lastGlow) return;
-      lastGlow.glow.style.setProperty('--border-glow-proximity', '0');
-      aim(lastGlow, DEFAULT_ANGLE);
-      lastGlow = null;
+      if (event.relatedTarget || !lastGlow.length) return;
+      lastGlow.forEach(record => {
+        record.glow.style.setProperty('--border-glow-proximity', '0');
+        aim(record, DEFAULT_ANGLE);
+      });
+      lastGlow = [];
       pointer = null;
     }, { passive: true });
     forcedColors.addEventListener('change', () => visible.forEach(schedule));

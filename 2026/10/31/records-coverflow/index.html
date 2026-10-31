@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>唱片架是怎么做出来的 · BETTER CALL ME</title>
+<meta name="description" content="把自己存的 63 张专辑做成 Cover Flow：用 iTunes 接口对上封面和 30 秒试听，繁简、豪华版、同名专辑怎么对，翻页掉帧怎么修，最后把它放在一片夜湖上。">
+<link rel="canonical" href="https://qinghuidaqzp.github.io/2026/10/31/records-coverflow/">
+<link rel="icon" href="/img/qzp.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Noto+Serif+SC:wght@400;600&display=swap">
+
+<link rel="stylesheet" href="/css/liquid-glass.css">
+<link rel="stylesheet" href="/css/glass-pages.css">
+<link rel="stylesheet" href="/css/qzp.css">
+
+<link rel="modulepreload" href="/vendor/liquid-glass/displacement-map.js">
+<link rel="modulepreload" href="/vendor/liquid-glass/tokens.js">
+<link rel="modulepreload" href="/vendor/liquid-glass/capabilities.js">
+<script type="module" src="/js/liquid-glass.js"></script>
+
+<meta name="generator" content="Hexo 8.1.1"><link rel="alternate" href="/atom.xml" title="BETTER CALL ME" type="application/atom+xml">
+</head>
+<body>
+
+<div id="web_bg" class="has-photo" data-no-flow aria-hidden="true"><div class="photo-bg"></div></div>
+
+<nav class="topbar" data-lg="nav" aria-label="主导航">
+  <a class="brand" href="/">QZP</a>
+  <div class="seg-track">
+    
+    <a class="seg" href="/">首页</a>
+    
+    <a class="seg is-current" href="/blog/" aria-current="page">博客</a>
+    
+    <a class="seg" href="/categories/%E5%B0%8F%E8%AF%B4/">小说</a>
+    
+    <a class="seg" href="/records/">唱片</a>
+    
+    <a class="seg" href="/posters/">电影</a>
+    
+    <a class="seg" href="/bookshelf/">书籍</a>
+    
+    <span class="seg-indicator" aria-hidden="true"></span>
+  </div>
+</nav>
+
+<main class="site-main">
+
+<article class="post panel" data-lg="reading">
+  <header class="post-head">
+    <div class="post-kicker">
+      <a class="pill" href="/categories/article/">article</a>
+      <time datetime="2026-10-31T12:10:00.000Z">2026 · 10 · 31</time>
+    </div>
+    <h1 class="post-title">唱片架是怎么做出来的</h1>
+    <p class="post-dek">把自己存的 63 张专辑做成 Cover Flow：用 iTunes 接口对上封面和 30 秒试听，繁简、豪华版、同名专辑怎么对，翻页掉帧怎么修，最后把它放在一片夜湖上。</p>
+    <p class="post-stats">约 1,231 字 · 读完约 3 分钟</p>
+  </header>
+
+  <div class="prose">
+    <p><img src="/img/posts/redesign/records.webp" alt="唱片架：夜湖上的 Cover Flow"></p>
+<p><a href="/records/">唱片架</a>是这次改版里最早做的独立页面：把我存的专辑做成老 iPod 那种 Cover Flow，翻到哪张，黑胶就从封套里滑出来，点一下放 30 秒试听。</p>
+<span id="more"></span>
+
+<h2 id="数据：本地的歌，Apple-的封面和试听"><a href="#数据：本地的歌，Apple-的封面和试听" class="headerlink" title="数据：本地的歌，Apple 的封面和试听"></a>数据：本地的歌，Apple 的封面和试听</h2><p>歌都是存在电脑上的 m4a，按「歌手 &#x2F; 专辑 &#x2F; 序号 歌名」放好，一共 63 张专辑。网站上不放任何音乐文件，只用公开的信息：写了个脚本扫这个文件夹，拿「歌手 + 专辑名」去 Apple 的 iTunes Search API 搜，对上之后记下封面、曲目表和每首歌官方的 30 秒试听链接，存成一个 JSON。</p>
+<p>听起来简单，真对起来问题不少：</p>
+<ul>
+<li><strong>大陆区搜不到。</strong> 中国大陆区的搜索接口不返回结果。改成先查台湾区（专辑链接也给台湾区的），找不到再查美区。</li>
+<li><strong>繁简对不上。</strong> 台湾区的歌名、专辑名是繁体，我本地的是简体。比较之前先统一转成简体（OpenCC），再去掉大小写、空格、标点，以及 Single、EP 这类后缀。</li>
+<li><strong>普通版还是豪华版。</strong> 同一张专辑常常有好几个版本。前几个候选都把曲目表拉下来，看本地的歌能对上几首，选对上最多的那一版。</li>
+<li><strong>配到别的专辑。</strong> 对上的歌不到六成的，多半是配到了同名的另一张专辑。这时换个办法：拿专辑里的歌名去搜单曲，再从单曲反查它属于哪张专辑。</li>
+<li><strong>限流。</strong> Apple 限制每分钟大约 20 次请求，脚本每次请求间隔 3.2 秒，被限流就等一会儿再试；结果都缓存下来，以后重跑只查新加的专辑。</li>
+</ul>
+<p>最后 63 张全部对上，551 首歌里有 550 首能试听。</p>
+<h2 id="Cover-Flow"><a href="#Cover-Flow" class="headerlink" title="Cover Flow"></a>Cover Flow</h2><p><img src="/img/posts/redesign/records-playing.webp" alt="正在放的那张：黑胶滑出来，唱臂摆上去"></p>
+<ul>
+<li>每张封面按离中心的距离摆位：中间那张正对着你，两侧的转 58° 并往后退，离得越远排得越挤；</li>
+<li>位置用弹簧动画收敛，按固定的小步长（1&#x2F;240 秒）来算，翻得再快也稳；</li>
+<li>拖动松手时按速度多翻几张；鼠标滚轮一格翻一张，触控板细碎的滚动攒够了再翻；方向键也能翻；</li>
+<li>停稳以后，黑胶从封套里滑出来、唱臂摆上去，右边的封面往旁边让开；点中间那张播放或暂停，曲目单从播放条上方弹出；</li>
+<li>网址会带上当前专辑的 id，可以直接把某一张分享出去。</li>
+</ul>
+<h2 id="一开始很卡"><a href="#一开始很卡" class="headerlink" title="一开始很卡"></a>一开始很卡</h2><p>第一版翻起来明显掉帧，查下来主要是这几处：</p>
+<ul>
+<li><strong>倒影。</strong> 原本用 <code>-webkit-box-reflect</code> 做倒影，它在 3D 翻转时每帧都要重算一遍。改成把同一张封面翻转过来放在正下方，和封面在同一个图层里一起动。</li>
+<li><strong>封面太大。</strong> 原来用 600px 的封面，换成 400px，高清屏上也够，解码快了一倍多。</li>
+<li><strong>只算看得到的。</strong> 只给屏幕上看得见的那几张算位置，其余的直接隐藏；离中心近的提前两张开始加载。</li>
+<li><strong>背景在动。</strong> 导航和播放条是会折射背景的玻璃，当时的背景还是流动的，背景一动它们就得跟着重算。所以翻动的时候先让背景停下来。</li>
+</ul>
+<h2 id="夜湖"><a href="#夜湖" class="headerlink" title="夜湖"></a>夜湖</h2><p>后来想让封面下面的倒影更显眼，给唱片架换了背景。试了黑镜面、晨雾湖、黄昏湖和夜湖，最后用的是夜湖：</p>
+<ul>
+<li>天空到封面的底边为止，深蓝色，右上角一轮月亮，几颗星；</li>
+<li>封面底边就是湖岸线，下面是更深的湖面，湖面上有一道月光的倒影；</li>
+<li>封面的倒影拉长、调亮，上面再压一层很淡的水纹：两层疏密不同的横线，慢慢往下漂。</li>
+</ul>
+<p>湖岸线是按封面底边实时量的，换个屏幕尺寸也对得上。</p>
+
+  </div>
+
+  <footer class="post-foot">
+    
+    <div class="post-tags">
+      <a class="pill" href="/tags/%E5%8D%9A%E5%AE%A2/"># 博客</a><a class="pill" href="/tags/%E5%94%B1%E7%89%87/"># 唱片</a><a class="pill" href="/tags/%E5%89%8D%E7%AB%AF/"># 前端</a>
+    </div>
+    
+    <nav class="post-nav" aria-label="上一篇和下一篇">
+      
+      <a class="post-nav-item" data-lg="card" href="/2026/10/31/%E6%96%AD%E7%BA%B1-009/"><small>较新的</small><span>断纱 · 第九章　搪瓷缸</span></a>
+      <a class="post-nav-item is-next" data-lg="card" href="/2026/10/31/%E6%96%AD%E7%BA%B1-008/"><small>较早的</small><span>断纱 · 第八章　搬</span></a>
+    </nav>
+  </footer>
+</article>
+
+<section class="comments panel" data-lg="card" aria-label="评论">
+  <h2 class="comments-title">评论</h2>
+  <script src="https://giscus.app/client.js"
+    data-repo="qinghuidaqzp/qinghuidaqzp.github.io"
+    data-repo-id="R_kgDOQY7TBa"
+    data-category="General"
+    data-category-id="DIC_kwDOQY7TbM4Czfhc"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="bottom"
+    data-theme="transparent_dark"
+    data-lang="zh-CN"
+    data-loading="lazy"
+    crossorigin="anonymous"
+    async></script>
+</section>
+
+
+
+</main>
+<footer class="site-foot">
+  <span>© 2026 QZP</span>
+  <a href="/archives/">归档</a>
+  <a href="/link/">友链</a>
+  <a href="/atom.xml">RSS</a>
+  <a href="https://github.com/qinghuidaqzp" target="_blank" rel="noopener">GitHub</a><a href="https://x.com/haiyou89" target="_blank" rel="noopener">X</a><a href="https://www.instagram.com/qzp117" target="_blank" rel="noopener">Instagram</a><a href="https://linux.do/u/caery" target="_blank" rel="noopener">LINUX DO</a>
+</footer>
+
+<script src="/js/glass-pages.js"></script>
+</body>
+</html>

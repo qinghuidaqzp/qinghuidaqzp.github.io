@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QZP · 电影</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&display=swap">
+<link rel="preconnect" href="https://minio.mythsman.com">
+<link rel="stylesheet" href="/css/liquid-glass.css">
+<link rel="stylesheet" href="/css/glass-pages.css">
+<link rel="modulepreload" href="/vendor/liquid-glass/displacement-map.js">
+<link rel="modulepreload" href="/vendor/liquid-glass/tokens.js">
+<link rel="modulepreload" href="/vendor/liquid-glass/capabilities.js">
+<script type="module" src="/js/liquid-glass.js"></script>
+<style>
+  /* 海报墙：豆瓣「看过」的电影，按标记年份分组；数据由 tools/posters-data.js 生成在 movies.json */
+  .wall { max-width: 1240px; margin: 0 auto; padding: 92px 20px 60px; }
+  .wall-head { text-align: center; margin-bottom: 26px; }
+  .wall-head h1 { margin: 0; font-family: 'Anton', sans-serif; font-weight: 400; font-size: clamp(40px, 6vw, 72px); letter-spacing: .02em; line-height: 1; }
+  .stat { margin: 10px 0 18px; font-size: 14px; color: var(--ink-soft); }
+
+  /* 筛选：LGOS 玻璃条，选中的那一项垫一颗玻璃胶囊，用弹簧曲线滑过去 */
+  .filters { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+  .chips {
+    position: relative; display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    max-width: 100%; padding: 4px; border-radius: 999px;
+    background: rgba(255, 255, 255, .22);
+    border: 1px double rgba(51, 51, 51, .08);
+    -webkit-backdrop-filter: blur(2.8px) saturate(160%); backdrop-filter: blur(2.8px) saturate(160%);
+    box-shadow: inset 1.5px -1.5px 1px -1px rgba(255, 255, 255, .92), inset -1.5px 1.5px 1px -1px rgba(255, 255, 255, .9), inset 0 0 3px rgba(15, 23, 42, .2), 0 10px 24px rgba(15, 23, 42, .1);
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    position: relative; z-index: 2; flex: none;
+    height: 32px; padding: 0 14px; border: 0; border-radius: 999px;
+    background: none; color: var(--ink); font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer;
+    opacity: .55; transition: opacity .25s var(--spring);
+  }
+  .chip:hover { opacity: .85; }
+  .chip[aria-pressed='true'] { opacity: 1; font-weight: 600; }
+  .chip:focus-visible { outline: 2px solid rgba(10, 132, 255, .7); outline-offset: -2px; }
+  .chip-indicator {
+    position: absolute; top: 4px; left: 0; z-index: 1; height: 32px; width: 0;
+    border-radius: 999px; pointer-events: none;
+    background: rgba(255, 255, 255, .6);
+    box-shadow: inset 1.5px -1.5px 1px -1px rgba(255, 255, 255, .95), inset -1.5px 1.5px 1px -1px rgba(255, 255, 255, .9), 0 4px 12px rgba(15, 23, 42, .1);
+    transition: transform .35s var(--spring), width .35s var(--spring);
+  }
+
+  /* 每年一组，组标题吸在导航下面 */
+  .year { margin-top: 30px; content-visibility: auto; contain-intrinsic-size: auto 900px; }
+  /* 年份标题：和导航栏同一种液态玻璃（data-lg="nav"，由 liquid-glass.js 折射）；
+     下面的 background / backdrop-filter / box-shadow 只在引擎没加载时生效 */
+  .year-head {
+    position: sticky; top: 66px; z-index: 5;
+    display: inline-flex; align-items: baseline; gap: 8px;
+    margin: 0 0 14px; padding: 6px 16px; border-radius: 999px;
+    font-family: 'Anton', sans-serif; font-weight: 400; font-size: 22px; letter-spacing: .03em;
+    background: rgba(255, 255, 255, .4);
+    -webkit-backdrop-filter: blur(14px) saturate(160%); backdrop-filter: blur(14px) saturate(160%);
+    box-shadow: inset 1.5px -1.5px 1px -1px rgba(255, 255, 255, .92), inset -1.5px 1.5px 1px -1px rgba(255, 255, 255, .9), 0 6px 16px rgba(15, 23, 42, .08);
+  }
+  .year-head small { font-family: -apple-system, BlinkMacSystemFont, 'PingFang TC', sans-serif; font-size: 13px; color: var(--ink-soft); letter-spacing: 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 16px 14px; }
+
+  .poster {
+    position: relative; display: block; padding: 0; border: 0; border-radius: 6px;
+    background: rgba(255, 255, 255, .35); cursor: pointer;
+    aspect-ratio: 2 / 3;
+    transition: transform .35s var(--spring), box-shadow .35s var(--ease);
+    box-shadow: 0 10px 22px rgba(30, 30, 60, .16), 0 2px 6px rgba(30, 30, 60, .1);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .poster img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+  .poster::after { /* 海报纸面的一点反光 */
+    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(120deg, rgba(255, 255, 255, .18), transparent 40%);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .15);
+  }
+  .poster .cap {
+    position: absolute; left: 6px; right: 6px; bottom: 6px; z-index: 1;
+    padding: 6px 8px; border-radius: 8px; text-align: left;
+    background: rgba(255, 255, 255, .62);
+    -webkit-backdrop-filter: blur(10px) saturate(160%); backdrop-filter: blur(10px) saturate(160%);
+    box-shadow: inset 1px -1px 1px -.5px rgba(255, 255, 255, .9);
+    opacity: 0; transform: translateY(6px);
+    transition: opacity .2s, transform .3s var(--ease);
+  }
+  .poster .cap b { display: block; font-size: 12px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .poster .cap i { display: block; font-style: normal; font-size: 11px; color: #e08a00; letter-spacing: 1px; }
+  @media (hover: hover) {
+    .poster:hover { transform: translateY(-5px) scale(1.03); box-shadow: 0 20px 36px rgba(30, 30, 60, .22), 0 4px 10px rgba(30, 30, 60, .12); z-index: 2; }
+    .poster:hover .cap { opacity: 1; transform: none; }
+  }
+  .poster:focus-visible { outline: 2px solid rgba(10, 132, 255, .8); outline-offset: 3px; }
+  .poster:focus-visible .cap { opacity: 1; transform: none; }
+  .empty { margin: 60px 0; text-align: center; color: var(--ink-soft); }
+
+  /* 详情：玻璃卡片 */
+  .detail {
+    position: fixed; inset: 0; z-index: 70;
+    display: grid; place-items: center; padding: 20px;
+    background: rgba(24, 24, 36, .22);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    animation: fade .25s;
+  }
+  .detail[hidden] { display: none; }
+  .detail-card {
+    position: relative;
+    display: grid; grid-template-columns: 210px 1fr; gap: 22px;
+    width: min(680px, 100%); max-height: calc(100vh - 40px); overflow: auto;
+    padding: 22px; border-radius: 26px;
+    background: rgba(255, 255, 255, .62);
+    -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%);
+    box-shadow: inset 1.5px -1.5px 1px -1px rgba(255, 255, 255, .92), inset -1.5px 1.5px 1px -1px rgba(255, 255, 255, .9), 0 24px 60px rgba(15, 23, 42, .25);
+    animation: rise .4s var(--ease);
+  }
+  .detail-poster { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 10px; box-shadow: 0 14px 30px rgba(30, 30, 60, .25); }
+  .detail-info { min-width: 0; padding-right: 26px; }
+  .detail-info h2 { margin: 4px 0 2px; font-size: 24px; letter-spacing: -.01em; }
+  .detail-original { margin: 0 0 10px; color: var(--ink-soft); font-size: 14px; }
+  .detail-meta { margin: 0 0 14px; font-size: 13px; line-height: 1.6; color: var(--ink-soft); }
+  .detail-rate { margin: 0; font-size: 20px; color: #e08a00; letter-spacing: 2px; }
+  .detail-date { margin: 2px 0 14px; font-size: 12px; color: var(--ink-soft); }
+  .detail-comment {
+    margin: 0 0 16px; padding: 10px 14px; border-radius: 12px;
+    background: rgba(255, 255, 255, .5); font-size: 15px; line-height: 1.6;
+  }
+  .detail-comment::before { content: '“'; font-size: 22px; line-height: 0; color: var(--ink-soft); margin-right: 2px; }
+  .detail-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .pill {
+    display: inline-grid; place-items: center; height: 36px; padding: 0 14px; border: 0; border-radius: 999px;
+    font: inherit; font-size: 13px; color: var(--ink); text-decoration: none; cursor: pointer;
+    background: rgba(255, 255, 255, .55);
+    box-shadow: inset 1.5px -1.5px 1px -1px rgba(255, 255, 255, .95), inset -1.5px 1.5px 1px -1px rgba(255, 255, 255, .9), 0 4px 10px rgba(15, 23, 42, .08);
+  }
+  .pill.douban { color: #fff; background: #2e963d; }
+  .pill:focus-visible, .close:focus-visible { outline: 2px solid rgba(10, 132, 255, .7); outline-offset: 2px; }
+  .close {
+    position: absolute; top: 14px; right: 14px;
+    width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%;
+    display: grid; place-items: center; font-size: 18px; line-height: 1; cursor: pointer;
+    color: var(--ink); background: rgba(255, 255, 255, .55);
+  }
+  /* --- 背景：胶片 -------------------------------------------------------------------------
+     深色放映室：两边各一条 35mm 胶片（齿孔 + 一格一格的画框），慢慢往上走；整屏一点颗粒和暖色。
+     #web_bg 里三层：.bg-a 左边胶片，.bg-b 右边胶片，.bg-c 颗粒和暗角。
+     底是深色，字、筛选条、年份标题、海报说明、详情卡都换成深色玻璃白字 */
+  :root { --ink: #fff; --ink-soft: rgba(255, 255, 255, .62); }
+  body { color: var(--ink) !important; background: #12100e !important; } /* liquid-glass.css 把正文定成了深色、底定成了浅灰 */
+  html { scrollbar-width: none; } /* 系统滚动条的轨道会在右边留一条浅色边；滚轮、触控板照常滚 */
+  html::-webkit-scrollbar { display: none; }
+  .topbar.lg-surface[data-lg-kind='nav'],
+  .year-head.lg-surface[data-lg-kind='nav'] { --lg-tint: rgba(20, 22, 32, .32); }
+  .year-head:not(.lg-surface) { background: rgba(20, 22, 32, .5); }
+  .chips { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .1); }
+  .chip-indicator { background: rgba(255, 255, 255, .18); }
+  .poster { background: rgba(255, 255, 255, .06); box-shadow: 0 12px 26px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3); }
+  .poster .cap { background: rgba(14, 16, 24, .74); }
+  .detail { background: rgba(0, 0, 0, .45); }
+  .detail-card { background: rgba(22, 24, 34, .82); }
+  .detail-comment { background: rgba(255, 255, 255, .08); }
+  .pill:not(.douban), .close { background: rgba(255, 255, 255, .12); }
+
+  #web_bg { background: #12100e !important; }
+  #web_bg::before, #web_bg::after { display: none !important; }
+  #web_bg > div { position: absolute; top: 0; bottom: 0; pointer-events: none; }
+  #web_bg .bg-a, #web_bg .bg-b { width: 58px; overflow: hidden; background: #1d1a17; }
+  #web_bg .bg-a { left: 0; }
+  #web_bg .bg-b { right: 0; }
+  #web_bg .bg-a::before, #web_bg .bg-b::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 120px);
+    background:
+      repeating-linear-gradient(180deg, transparent 0 8px, rgba(236, 226, 206, .8) 8px 20px, transparent 20px 30px) 6px 0 / 9px 100% no-repeat,
+      repeating-linear-gradient(180deg, transparent 0 8px, rgba(236, 226, 206, .8) 8px 20px, transparent 20px 30px) calc(100% - 6px) 0 / 9px 100% no-repeat,
+      repeating-linear-gradient(180deg, rgba(255, 170, 90, .12) 0 116px, rgba(0, 0, 0, .85) 116px 120px) 20px 0 / 18px 100% no-repeat;
+    animation: film-roll 6s linear infinite; /* 120px = 齿孔 30px 和画框 120px 的公倍数，循环接得上 */
+  }
+  @keyframes film-roll { to { transform: translateY(-120px); } }
+  #web_bg .bg-c {
+    left: 0; right: 0;
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .9 0 0 0 0 .8 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
+      radial-gradient(ellipse 70% 60% at 50% 40%, rgba(255, 180, 100, .08), transparent 70%),
+      radial-gradient(ellipse 85% 75% at 50% 50%, transparent 50%, rgba(0, 0, 0, .55) 100%);
+  }
+  @media (max-width: 640px) {
+    #web_bg .bg-a, #web_bg .bg-b { width: 30px; }
+  }
+
+  @keyframes fade { from { opacity: 0; } }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.98); } }
+
+  @media (max-width: 640px) {
+    .wall { padding: 80px 12px 40px; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 12px 10px; }
+    .year-head { top: 60px; font-size: 19px; }
+    .detail-card { grid-template-columns: 1fr; padding: 18px; }
+    .detail-poster { width: 46%; justify-self: center; }
+    .detail-info { padding-right: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="web_bg" data-no-flow aria-hidden="true"><div class="bg-a"></div><div class="bg-b"></div><div class="bg-c"></div></div>
+
+<nav class="topbar" data-lg="nav" aria-label="主导航">
+  <a class="brand" href="/">QZP</a>
+  <div class="seg-track">
+    <a class="seg" href="/">首页</a>
+    <a class="seg" href="/blog/">博客</a>
+    <a class="seg" href="/categories/小说/">小说</a>
+    <a class="seg" href="/records/">唱片</a>
+    <a class="seg is-current" href="/posters/" aria-current="page">电影</a>
+    <a class="seg" href="/bookshelf/">书籍</a>
+    <span class="seg-indicator" aria-hidden="true"></span>
+  </div>
+</nav>
+
+<main class="wall">
+  <header class="wall-head">
+    <h1>MOVIES</h1>
+    <p class="stat">正在取海报…</p>
+    <div class="filters">
+      <div class="chips years" role="group" aria-label="按看的年份"></div>
+      <div class="chips stars" role="group" aria-label="按我的评分"></div>
+    </div>
+  </header>
+  <div class="sections"></div>
+</main>
+
+<div class="detail" hidden>
+  <article class="detail-card" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <button class="close" type="button" aria-label="关闭">×</button>
+    <img class="detail-poster" alt="">
+    <div class="detail-info">
+      <h2 id="detail-title"></h2>
+      <p class="detail-original"></p>
+      <p class="detail-meta"></p>
+      <p class="detail-rate"></p>
+      <p class="detail-date"></p>
+      <p class="detail-comment"></p>
+      <div class="detail-actions">
+        <a class="pill douban" target="_blank" rel="noopener">在豆瓣查看</a>
+        <button class="pill prev" type="button">上一部</button>
+        <button class="pill next" type="button">下一部</button>
+      </div>
+    </div>
+  </article>
+</div>
+
+<script src="/js/glass-pages.js"></script>
+<script>
+(() => {
+  const { say, still } = GlassPages;
+  const sections = document.querySelector('.sections');
+  const stat = document.querySelector('.stat');
+  const yearChips = document.querySelector('.chips.years');
+  const starChips = document.querySelector('.chips.stars');
+  const detail = document.querySelector('.detail');
+  const card = detail.querySelector('.detail-card');
+
+  let movies = [], shown = [], current = -1, opener = null;
+  const filter = { year: 'all', stars: 0 };
+  const STAR_FILTERS = [[0, '全部评分'], [4, '4 星以上'], [5, '5 星']];
+
+  const stars = rate => rate ? '★'.repeat(rate) + '☆'.repeat(5 - rate) : '';
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  };
+
+  // 筛选按钮：选中的那一项垫一颗玻璃胶囊，滑过去
+  function chipGroup(host, items, value, onPick) {
+    const indicator = el('span', 'chip-indicator');
+    indicator.setAttribute('aria-hidden', 'true');
+    const buttons = items.map(([key, label]) => {
+      const button = el('button', 'chip', label);
+      button.type = 'button';
+      button.dataset.key = key;
+      button.setAttribute('aria-pressed', String(key === value));
+      return button;
+    });
+    host.replaceChildren(...buttons, indicator);
+    const place = (animate = true) => {
+      const on = buttons.find(b => b.getAttribute('aria-pressed') === 'true');
+      if (!on) return;
+      if (!animate) indicator.style.transition = 'none';
+      indicator.style.width = on.offsetWidth + 'px';
+      indicator.style.transform = `translateX(${on.offsetLeft}px)`;
+      if (!animate) { void indicator.offsetWidth; indicator.style.transition = ''; }
+    };
+    host.addEventListener('click', e => {
+      const button = e.target.closest('.chip');
+      if (!button) return;
+      buttons.forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+      place();
+      onPick(button.dataset.key);
+    });
+    addEventListener('resize', () => place(false));
+    document.fonts?.ready.then(() => place(false));
+    place(false);
+  }
+
+  function render() {
+    shown = movies.filter(m => (filter.year === 'all' || m.date.startsWith(filter.year)) && m.rate >= filter.stars);
+    const groups = new Map();
+    shown.forEach((movie, i) => {
+      const year = movie.date.slice(0, 4) || '未注明';
+      if (!groups.has(year)) groups.set(year, []);
+      groups.get(year).push([movie, i]);
+    });
+    const frag = document.createDocumentFragment();
+    for (const [year, list] of groups) {
+      const section = el('section', 'year');
+      const head = el('h2', 'year-head', year);
+      head.dataset.lg = 'nav';
+      head.append(el('small', '', `${list.length} 部`));
+      const grid = el('div', 'grid');
+      for (const [movie, i] of list) {
+        const button = el('button', 'poster');
+        button.type = 'button';
+        button.dataset.i = i;
+        button.setAttribute('aria-label', movie.rate ? `${movie.title}，${movie.rate} 星` : movie.title);
+        const img = el('img');
+        img.src = movie.poster;
+        img.alt = '';
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        img.width = 270;
+        img.height = 400;
+        const cap = el('span', 'cap');
+        cap.append(el('b', '', movie.title), el('i', '', stars(movie.rate) || '未评分'));
+        button.append(img, cap);
+        grid.append(button);
+      }
+      section.append(head, grid);
+      frag.append(section);
+    }
+    sections.replaceChildren(frag);
+    document.dispatchEvent(new CustomEvent('liquid-glass:refresh')); // 让引擎给新的年份标题套上玻璃
+    if (!shown.length) sections.append(el('p', 'empty', '这个条件下没有电影'));
+    const first = movies[movies.length - 1]?.date.slice(0, 4);
+    stat.textContent = filter.year === 'all' && !filter.stars
+      ? `看过 ${movies.length} 部 · ${first} 年起在豆瓣记录`
+      : `${shown.length} 部`;
+  }
+
+  // 详情卡片
+  function open(i) {
+    const movie = shown[i];
+    if (!movie) return;
+    current = i;
+    card.querySelector('.detail-poster').src = movie.poster;
+    card.querySelector('#detail-title').textContent = movie.title;
+    card.querySelector('.detail-original').textContent = movie.original;
+    card.querySelector('.detail-meta').textContent = [movie.year, movie.style, movie.director && `导演 ${movie.director}`].filter(Boolean).join(' · ');
+    card.querySelector('.detail-rate').textContent = stars(movie.rate) || '没打分';
+    card.querySelector('.detail-date').textContent = movie.date ? `${movie.date} 看过` : '';
+    const comment = card.querySelector('.detail-comment');
+    comment.textContent = movie.comment;
+    comment.hidden = !movie.comment;
+    card.querySelector('.douban').href = `https://movie.douban.com/subject/${movie.id}/`;
+    card.querySelector('.prev').disabled = i === 0;
+    card.querySelector('.next').disabled = i === shown.length - 1;
+    if (detail.hidden) {
+      opener = document.activeElement;
+      detail.hidden = false;
+      document.body.style.overflow = 'hidden';
+      card.querySelector('.close').focus();
+    }
+  }
+  function close() {
+    if (detail.hidden) return;
+    detail.hidden = true;
+    document.body.style.overflow = '';
+    opener?.focus?.();
+  }
+  sections.addEventListener('click', e => {
+    const button = e.target.closest('.poster');
+    if (button) open(Number(button.dataset.i));
+  });
+  detail.addEventListener('click', e => { if (e.target === detail) close(); });
+  card.querySelector('.close').addEventListener('click', close);
+  card.querySelector('.prev').addEventListener('click', () => open(current - 1));
+  card.querySelector('.next').addEventListener('click', () => open(current + 1));
+  addEventListener('keydown', e => {
+    if (detail.hidden) return;
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowLeft') open(current - 1);
+    else if (e.key === 'ArrowRight') open(current + 1);
+    else if (e.key === 'Tab') { // 焦点留在卡片里
+      const focusable = [...card.querySelectorAll('a[href], button:not(:disabled)')];
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+
+  fetch('/posters/movies.json')
+    .then(res => { if (!res.ok) throw new Error(res.status); return res.json(); })
+    .then(data => {
+      movies = data;
+      const years = [...new Set(movies.map(m => m.date.slice(0, 4)).filter(Boolean))];
+      chipGroup(yearChips, [['all', '全部年份'], ...years.map(y => [y, y])], 'all', key => {
+        filter.year = key;
+        render();
+        scrollTo({ top: 0, behavior: still.matches ? 'auto' : 'smooth' });
+      });
+      chipGroup(starChips, STAR_FILTERS.map(([n, label]) => [String(n), label]), '0', key => {
+        filter.stars = Number(key);
+        render();
+      });
+      render();
+    })
+    .catch(() => {
+      stat.textContent = '海报还没取到';
+      say('电影数据没加载出来', 0);
+    });
+})();
+</script>
+</body>
+</html>

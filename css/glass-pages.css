@@ -1,0 +1,106 @@
+/*
+ * 独立页面（封面 /cover-demo/、唱片架 /records/、海报墙 /posters/）共用的样式：
+ * 珍珠流动背景、液态玻璃导航和滑块、提示条。玻璃折射由 liquid-glass.js 负责
+ * （带 data-lg 的元素），这里只管布局和 LGOS 材质。
+ */
+:root {
+  --ink: #1b1b22;
+  --ink-soft: #5b5b66;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  --spring: cubic-bezier(.34, 1.56, .64, 1); /* xiaojiaenen/liquid-glass 的 spring.default */
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  background: #eef2f7;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 背景：珍珠配色的流动色块（WebGL，glass-pages.js 画），不用引擎自带的线条
+   （#web_bg 带 data-no-flow）。没有 WebGL 时脚本换成同配色的静态渐变 */
+#web_bg.pearl-bg::before, #web_bg.pearl-bg::after { display: none !important; }
+.pearl-flow { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+
+/* 顶部导航：玻璃材质全部交给液态玻璃引擎（data-lg="nav"，和博客导航同一套光学参数） */
+.topbar {
+  position: fixed; top: 14px; left: 50%; z-index: 50;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 2px;
+  padding: 5px;
+  border-radius: 999px;
+  animation: fade-down .8s var(--ease) backwards;
+}
+.topbar .brand {
+  display: grid; place-items: center; height: 34px; padding: 0 12px;
+  font-family: 'Anton', sans-serif; letter-spacing: .06em; font-size: 15px;
+  color: var(--ink); text-decoration: none;
+}
+
+/* 导航滑块（照 xiaojiaenen/liquid-glass 的 GlassSegmented）：整条导航是一块液态玻璃，
+   滑块是垫在文字下面的一颗玻璃胶囊（LGOS 材质），选中时用同一条弹簧曲线滑过去 */
+.seg-track { position: relative; display: flex; }
+.seg {
+  position: relative; z-index: 2;
+  display: grid; place-items: center;
+  width: 58px; height: 34px; border-radius: 999px;
+  color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 500; white-space: nowrap;
+  opacity: .5;
+  transition: opacity .25s var(--spring);
+  -webkit-tap-highlight-color: transparent;
+}
+.seg:hover { opacity: .8; }
+.seg.is-current { opacity: 1; font-weight: 600; }
+.seg:focus-visible { outline: 2px solid rgba(10, 132, 255, .7); outline-offset: -2px; }
+.seg-indicator {
+  position: absolute; top: 0; left: 0; z-index: 1;
+  width: 0; height: 100%;
+  border: 1px double rgba(51, 51, 51, .08);
+  border-radius: 999px;
+  overflow: hidden; isolation: isolate;
+  pointer-events: none;
+  background: rgba(255, 255, 255, .22);
+  -webkit-backdrop-filter: blur(2.8px) saturate(160%);
+  backdrop-filter: blur(2.8px) saturate(160%);
+  box-shadow:
+    inset 1.5px -1.5px 1px -1px rgba(255, 255, 255, .92),
+    inset -1.5px 1.5px 1px -1px rgba(255, 255, 255, .9),
+    inset 0 0 3px rgba(15, 23, 42, .35),
+    0 16px 32px rgba(15, 23, 42, .14);
+  transition: transform .35s var(--spring), width .35s var(--spring);
+  will-change: transform;
+}
+/* LGOS 的内环：一圈模糊的描边，上沿落在 35% 处，只剩底部一道柔和的弧 */
+.seg-indicator::before {
+  content: ''; position: absolute; top: 35%; left: 50%;
+  width: calc(100% - 16px); height: calc(100% - 16px);
+  transform: translateX(-50%);
+  border: 1px double rgba(0, 0, 0, .9); border-radius: inherit;
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+/* 提示条 */
+.toast {
+  position: fixed; top: 72px; left: 50%; z-index: 60;
+  transform: translate(-50%, -8px);
+  padding: 8px 16px; border-radius: 999px;
+  font-size: 14px; color: var(--ink); white-space: nowrap;
+  background: rgba(255, 255, 255, .7);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .7), 0 8px 22px rgba(40, 40, 80, .14);
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s, transform .35s var(--ease);
+}
+.toast.is-shown { opacity: 1; transform: translate(-50%, 0); }
+
+@keyframes fade-down { from { opacity: 0; transform: translate(-50%, -14px); } }
+
+@media (max-width: 640px) {
+  .topbar .brand { padding: 0 8px; }
+  .seg { width: 46px; font-size: 13px; } /* 6 项在 375px 宽的屏幕上也放得下 */
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

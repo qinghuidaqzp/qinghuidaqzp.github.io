@@ -1,166 +1,67 @@
-<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>我给 Reason Network 提的四个 PR | BETTER CALL ME</title><meta name="author" content="QZP"><meta name="copyright" content="QZP"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="一个已合并、三个在审：给 Reason Network 补上 ZCode Desktop 和 Windows 支持的记录。">
-<meta property="og:type" content="article">
-<meta property="og:title" content="我给 Reason Network 提的四个 PR">
-<meta property="og:url" content="https://qinghuidaqzp.github.io/2026/10/30/reason-network-pr/index.html">
-<meta property="og:site_name" content="BETTER CALL ME">
-<meta property="og:description" content="一个已合并、三个在审：给 Reason Network 补上 ZCode Desktop 和 Windows 支持的记录。">
-<meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="https://qinghuidaqzp.github.io/img/butterfly-icon.png">
-<meta property="article:published_time" content="2026-10-29T16:00:00.000Z">
-<meta property="article:modified_time" content="2026-10-30T07:24:02.221Z">
-<meta property="article:author" content="QZP">
-<meta property="article:tag" content="reason-network">
-<meta property="article:tag" content="开源">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="https://qinghuidaqzp.github.io/img/butterfly-icon.png"><script type="application/ld+json">{
-  "@context": "https://schema.org",
-  "@type": "BlogPosting",
-  "headline": "我给 Reason Network 提的四个 PR",
-  "url": "https://qinghuidaqzp.github.io/2026/10/30/reason-network-pr/",
-  "image": "https://qinghuidaqzp.github.io/img/butterfly-icon.png",
-  "datePublished": "2026-10-29T16:00:00.000Z",
-  "dateModified": "2026-10-30T07:24:02.221Z",
-  "author": [
-    {
-      "@type": "Person",
-      "name": "QZP",
-      "url": "https://qinghuidaqzp.github.io"
-    }
-  ]
-}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://qinghuidaqzp.github.io/2026/10/30/reason-network-pr/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.2"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
-    (() => {
-      
-    const saveToLocal = {
-      set: (key, value, ttl) => {
-        if (!ttl) return
-        const expiry = Date.now() + ttl * 86400000
-        localStorage.setItem(key, JSON.stringify({ value, expiry }))
-      },
-      get: key => {
-        const itemStr = localStorage.getItem(key)
-        if (!itemStr) return undefined
-        const { value, expiry } = JSON.parse(itemStr)
-        if (Date.now() > expiry) {
-          localStorage.removeItem(key)
-          return undefined
-        }
-        return value
-      }
-    }
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
 
-    window.btf = {
-      saveToLocal,
-      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
-        const script = document.createElement('script')
-        script.src = url
-        script.async = true
-        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
-        script.onload = script.onreadystatechange = () => {
-          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
-        }
-        script.onerror = reject
-        document.head.appendChild(script)
-      }),
-      getCSS: (url, id) => new Promise((resolve, reject) => {
-        const link = document.createElement('link')
-        link.rel = 'stylesheet'
-        link.href = url
-        if (id) link.id = id
-        link.onload = link.onreadystatechange = () => {
-          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
-        }
-        link.onerror = reject
-        document.head.appendChild(link)
-      }),
-      addGlobalFn: (key, fn, name = false, parent = window) => {
-        if (!true && key.startsWith('pjax')) return
-        const globalFn = parent.globalFn || {}
-        globalFn[key] = globalFn[key] || {}
-        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
-        parent.globalFn = globalFn
-      }
-    }
-  
-      
-      const activateDarkMode = () => {
-        document.documentElement.setAttribute('data-theme', 'dark')
-        if (document.querySelector('meta[name="theme-color"]') !== null) {
-          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
-        }
-      }
-      const activateLightMode = () => {
-        document.documentElement.setAttribute('data-theme', 'light')
-        if (document.querySelector('meta[name="theme-color"]') !== null) {
-          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
-        }
-      }
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>我给 Reason Network 提的四个 PR · BETTER CALL ME</title>
+<meta name="description" content="一个已合并、三个在审：给 Reason Network 补上 ZCode Desktop 和 Windows 支持的记录。">
+<link rel="canonical" href="https://qinghuidaqzp.github.io/2026/10/30/reason-network-pr/">
+<link rel="icon" href="/img/qzp.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Noto+Serif+SC:wght@400;600&display=swap">
 
-      btf.activateDarkMode = activateDarkMode
-      btf.activateLightMode = activateLightMode
+<link rel="stylesheet" href="/css/liquid-glass.css">
+<link rel="stylesheet" href="/css/glass-pages.css">
+<link rel="stylesheet" href="/css/qzp.css">
 
-      const theme = saveToLocal.get('theme')
+<link rel="modulepreload" href="/vendor/liquid-glass/displacement-map.js">
+<link rel="modulepreload" href="/vendor/liquid-glass/tokens.js">
+<link rel="modulepreload" href="/vendor/liquid-glass/capabilities.js">
+<script type="module" src="/js/liquid-glass.js"></script>
+
+<meta name="generator" content="Hexo 8.1.1"><link rel="alternate" href="/atom.xml" title="BETTER CALL ME" type="application/atom+xml">
+</head>
+<body>
+
+<div id="web_bg" class="has-photo" data-no-flow aria-hidden="true"><div class="photo-bg"></div></div>
+
+<nav class="topbar" data-lg="nav" aria-label="主导航">
+  <a class="brand" href="/">QZP</a>
+  <div class="seg-track">
     
-          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
-        
-      
-      const asideStatus = saveToLocal.get('aside-status')
-      if (asideStatus !== undefined) {
-        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
-      }
+    <a class="seg" href="/">首页</a>
     
-      
-    const detectApple = () => {
-      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
-        document.documentElement.classList.add('apple')
-      }
-    }
-    detectApple()
-  
-    })()
-  </script><script>const GLOBAL_CONFIG = {
-  root: '/',
-  algolia: undefined,
-  localSearch: undefined,
-  translate: undefined,
-  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":true},
-  copy: {
-    success: '复制成功',
-    error: '复制失败',
-    noSupport: '浏览器不支持'
-  },
-  relativeDate: {
-    homepage: false,
-    post: false
-  },
-  runtime: '',
-  dateSuffix: {
-    just: '刚刚',
-    min: '分钟前',
-    hour: '小时前',
-    day: '天前',
-    month: '个月前'
-  },
-  copyright: undefined,
-  lightbox: 'null',
-  Snackbar: undefined,
-  infinitegrid: {
-    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.12.0/dist/infinitegrid.min.js',
-    buttonText: '加载更多'
-  },
-  isPhotoFigcaption: false,
-  islazyloadPlugin: false,
-  isAnchor: false,
-  percent: {
-    toc: true,
-    rightside: false,
-  },
-  autoDarkmode: false
-}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
-  title: '我给 Reason Network 提的四个 PR',
-  isHighlightShrink: false,
-  isToc: true,
-  pageType: 'post'
-}</script><link rel="stylesheet" href="/css/custom.css?v=20261030-lg28"><link rel="stylesheet" href="/css/liquid-glass.css?v=20261030-lg28"><link rel="stylesheet" href="/css/liquid-glass-controls.css?v=20261030-lg28"><link rel="modulepreload" href="/vendor/liquid-glass/displacement-map.js"><link rel="modulepreload" href="/vendor/liquid-glass/tokens.js"><link rel="modulepreload" href="/vendor/liquid-glass/capabilities.js"><link rel="stylesheet" href="/css/mathjax.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css"><meta name="generator" content="Hexo 8.1.1"></head><body><div id="web_bg" style="background-color: #eef2f7;"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/butterfly-icon.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">6</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/movies/"><i class="fa-fw fas fa-film"></i><span> 电影</span></a></div><div class="menus_item"><a class="site-page" href="/books/"><i class="fa-fw fas fa-book"></i><span> 书籍</span></a></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> 友链</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">BETTER CALL ME</span></a><a class="nav-page-title" href="/"><span class="site-name">我给 Reason Network 提的四个 PR</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/movies/"><i class="fa-fw fas fa-film"></i><span> 电影</span></a></div><div class="menus_item"><a class="site-page" href="/books/"><i class="fa-fw fas fa-book"></i><span> 书籍</span></a></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> 友链</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">我给 Reason Network 提的四个 PR</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-29T16:00:00.000Z" title="发表于 2026-10-30 00:00:00">2026-10-30</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-30T07:24:02.221Z" title="更新于 2026-10-30 15:24:02">2026-10-30</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/article/">article</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="Reason-Network-是什么"><a href="#Reason-Network-是什么" class="headerlink" title="Reason Network 是什么"></a>Reason Network 是什么</h2><p><a target="_blank" rel="noopener" href="https://github.com/reason-machines/reason-network">Reason Network</a> 是一个用 Rust 写的小守护进程，每台电脑跑一个。装上之后，你和队友电脑上的编程 Agent（Claude Code、Codex、Cursor、Gemini CLI 等）能互相看到对方：谁在线、在哪个仓库和分支、正在忙什么，并且可以直接给对方的某个会话发消息。消息端到端加密、点对点传输，Agent 通过名为 <code>reason-network</code> 的 MCP 服务拿到 <code>list_team</code>、<code>send_message</code>、<code>check_inbox</code> 这几个工具。</p>
+    <a class="seg is-current" href="/blog/" aria-current="page">博客</a>
+    
+    <a class="seg" href="/categories/%E5%B0%8F%E8%AF%B4/">小说</a>
+    
+    <a class="seg" href="/records/">唱片</a>
+    
+    <a class="seg" href="/posters/">电影</a>
+    
+    <a class="seg" href="/bookshelf/">书籍</a>
+    
+    <span class="seg-indicator" aria-hidden="true"></span>
+  </div>
+</nav>
+
+<main class="site-main">
+
+<article class="post panel" data-lg="reading">
+  <header class="post-head">
+    <div class="post-kicker">
+      <a class="pill" href="/categories/article/">article</a>
+      <time datetime="2026-10-29T16:00:00.000Z">2026 · 10 · 30</time>
+    </div>
+    <h1 class="post-title">我给 Reason Network 提的四个 PR</h1>
+    <p class="post-dek">一个已合并、三个在审：给 Reason Network 补上 ZCode Desktop 和 Windows 支持的记录。</p>
+    <p class="post-stats">约 2,960 字 · 读完约 7 分钟</p>
+  </header>
+
+  <div class="prose">
+    <h2 id="Reason-Network-是什么"><a href="#Reason-Network-是什么" class="headerlink" title="Reason Network 是什么"></a>Reason Network 是什么</h2><p><a target="_blank" rel="noopener" href="https://github.com/reason-machines/reason-network">Reason Network</a> 是一个用 Rust 写的小守护进程，每台电脑跑一个。装上之后，你和队友电脑上的编程 Agent（Claude Code、Codex、Cursor、Gemini CLI 等）能互相看到对方：谁在线、在哪个仓库和分支、正在忙什么，并且可以直接给对方的某个会话发消息。消息端到端加密、点对点传输，Agent 通过名为 <code>reason-network</code> 的 MCP 服务拿到 <code>list_team</code>、<code>send_message</code>、<code>check_inbox</code> 这几个工具。</p>
 <p>我平时在 Windows 上用，也用智谱的 ZCode Desktop，这两块恰好是它支持得最薄的地方，于是有了下面四个 PR。</p>
 <h2 id="一览"><a href="#一览" class="headerlink" title="一览"></a>一览</h2><p>截至 2026-10-30：</p>
 <table>
@@ -234,135 +135,53 @@
 <li><strong>在真实环境里测。</strong> 30 秒工具超时、方括号被当通配符，这些都是在真实 ZCode、真实 Windows 路径上才暴露出来的。</li>
 <li><strong>写清楚没测到什么。</strong> 每个 PR 都单独列了”哪些没有验证”，不把本地结果说成 CI 结果。</li>
 </ul>
-</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://qinghuidaqzp.github.io">QZP</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://qinghuidaqzp.github.io/2026/10/30/reason-network-pr/">https://qinghuidaqzp.github.io/2026/10/30/reason-network-pr/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://qinghuidaqzp.github.io" target="_blank">BETTER CALL ME</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/reason-network/">reason-network</a><a class="post-meta__tags" href="/tags/%E5%BC%80%E6%BA%90/">开源</a></div><div class="post-share"><div class="social-share" data-image="/img/butterfly-icon.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/10/29/%E6%96%AD%E7%BA%B1-001/" title="断纱 · 第一章　早班"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">断纱 · 第一章　早班</div></div><div class="info-2"><div class="info-item-1"> 长篇小说《断纱》连载中，第一卷　霜降。作者：QZP。  醒是一下子醒的。 像车间顶上那只电铃，嗡的一声，把人从梦底下拽上来，拽上来了，耳朵里还在嗡。我睁着眼躺了一会儿，等那声音过去。窗帘是灰的，灰里透出一点青，青得发冷。五点。五点刚过。早班六点交接，洗把脸，走过去，二十分钟，来得及。 德明那半边床是平的。又被叫走了，夜里哪台车趴了窝，保全工段的人上来敲门，他套上裤子就下楼，鞋带都不系，说了多少回，鞋带不系要绊跟头的。我把手伸过去，摸到的是床单，凉的，平的，一道褶子都没有，像是好久没有人睡过。 我不去想这个。 衣裳搭在椅背上。不是那件。我要的是蓝的那件，劳保发的，斜纹布，右胸口袋上头印着厂名，红字，国棉三厂，那个三字最底下一横洗掉了半截，我拿红线补过，针脚有点歪，美芳还笑我，说你这个三字瘸了一条腿。椅背上搭的是一件紫红色的羊毛衫，软塌塌的，没有骨头，不晓得是谁的。衣柜里也没有，衣柜里挂的都是花的、亮的，禾禾买的，禾禾总是买这些，说妈你穿穿看嘛，你又不是一辈子待在车间里。 禾禾还在睡。她小，觉多。我得给她留早饭，锅里还有半碗粥，热一热，搁一个咸鸭蛋，切开，蛋黄要冒油的那种。 厨房的...</div></div></div></a></nav><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div></div><div class="comment-wrap"><div><div id="giscus-wrap"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/butterfly-icon.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">QZP</div><div class="author-info-description"></div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">6</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Reason-Network-%E6%98%AF%E4%BB%80%E4%B9%88"><span class="toc-number">1.</span> <span class="toc-text">Reason Network 是什么</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E8%A7%88"><span class="toc-number">2.</span> <span class="toc-text">一览</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#37-ZCode-MCP-%E6%8E%A5%E5%85%A5%EF%BC%88%E5%B7%B2%E5%90%88%E5%B9%B6%EF%BC%89"><span class="toc-number">3.</span> <span class="toc-text">#37 ZCode MCP 接入（已合并）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#160-ZCode-%E4%BC%9A%E8%AF%9D-Hooks%EF%BC%88%E5%AE%A1%E6%A0%B8%E4%B8%AD%EF%BC%89"><span class="toc-number">4.</span> <span class="toc-text">#160 ZCode 会话 Hooks（审核中）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#161-Windows-%E5%8E%9F%E7%94%9F%E6%A1%8C%E9%9D%A2%E7%9B%AE%E5%BD%95%EF%BC%88%E8%8D%89%E7%A8%BF%EF%BC%89"><span class="toc-number">5.</span> <span class="toc-text">#161 Windows 原生桌面目录（草稿）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#176-Windows-%E5%AE%89%E8%A3%85%E8%84%9A%E6%9C%AC%E7%9A%84%E8%B7%AF%E5%BE%84%EF%BC%88%E5%BE%85%E5%AE%A1%E6%A0%B8%EF%BC%89"><span class="toc-number">6.</span> <span class="toc-text">#176 Windows 安装脚本的路径（待审核）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%87%A0%E7%82%B9%E6%94%B6%E8%8E%B7"><span class="toc-number">7.</span> <span class="toc-text">几点收获</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/10/30/reason-network-pr/" title="我给 Reason Network 提的四个 PR">我给 Reason Network 提的四个 PR</a><time datetime="2026-10-29T16:00:00.000Z" title="发表于 2026-10-30 00:00:00">2026-10-30</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/10/29/%E6%96%AD%E7%BA%B1-001/" title="断纱 · 第一章　早班">断纱 · 第一章　早班</a><time datetime="2026-10-29T10:05:02.000Z" title="发表于 2026-10-29 18:05:02">2026-10-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/12/01/%E7%BB%84%E5%90%88%E6%95%B0%E5%AD%A6/" title="组合数学">组合数学</a><time datetime="2025-12-01T00:00:00.000Z" title="发表于 2025-12-01 08:00:00">2025-12-01</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/11/01/breaking-bad-ai/" title="与绝命毒师角色对话">与绝命毒师角色对话</a><time datetime="2025-11-01T00:00:00.000Z" title="发表于 2025-11-01 08:00:00">2025-11-01</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/11/01/%E5%85%A8%E6%81%AF%E5%9C%B0%E7%90%83%E4%BD%93%E9%AA%8C/" title="全息地球">全息地球</a><time datetime="2025-11-01T00:00:00.000Z" title="发表于 2025-11-01 08:00:00">2025-11-01</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By QZP</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.2</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.2"></script><script src="/js/main.js?v=5.5.2"></script><div class="js-pjax"><script>(() => {
-  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
-  const option = {"data-category":"General","data-mapping":"pathname","data-strict":"0","data-reactions-enabled":"1","data-emit-metadata":"0","data-input-position":"bottom","data-lang":"zh-CN"}
 
-  const getGiscusTheme = theme => theme === 'dark' ? 'light' : 'light'
+  </div>
 
-  const createScriptElement = config => {
-    const ele = document.createElement('script')
-    Object.entries(config).forEach(([key, value]) => {
-      ele.setAttribute(key, value)
-    })
-    return ele
-  }
+  <footer class="post-foot">
+    
+    <div class="post-tags">
+      <a class="pill" href="/tags/reason-network/"># reason-network</a><a class="pill" href="/tags/%E5%BC%80%E6%BA%90/"># 开源</a>
+    </div>
+    
+    <nav class="post-nav" aria-label="上一篇和下一篇">
+      
+      <a class="post-nav-item" data-lg="card" href="/2026/10/31/%E6%96%AD%E7%BA%B1-002/"><small>较新的</small><span>断纱 · 第二章　十一路</span></a>
+      <a class="post-nav-item is-next" data-lg="card" href="/2026/10/29/%E6%96%AD%E7%BA%B1-001/"><small>较早的</small><span>断纱 · 第一章　早班</span></a>
+    </nav>
+  </footer>
+</article>
 
-  const loadGiscus = (el = document, key) => {
-    const mappingConfig = isShuoshuo
-      ? { 'data-mapping': 'specific', 'data-term': key }
-      : { 'data-mapping': (option && option['data-mapping']) || 'pathname' }
+<section class="comments panel" data-lg="card" aria-label="评论">
+  <h2 class="comments-title">评论</h2>
+  <script src="https://giscus.app/client.js"
+    data-repo="qinghuidaqzp/qinghuidaqzp.github.io"
+    data-repo-id="R_kgDOQY7TBa"
+    data-category="General"
+    data-category-id="DIC_kwDOQY7TbM4Czfhc"
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="bottom"
+    data-theme="transparent_dark"
+    data-lang="zh-CN"
+    data-loading="lazy"
+    crossorigin="anonymous"
+    async></script>
+</section>
 
-    const giscusConfig = {
-      src: 'https://giscus.app/client.js',
-      'data-repo': 'qinghuidaqzp/qinghuidaqzp.github.io',
-      'data-repo-id': 'R_kgDOQY7TBa',
-      'data-category-id': 'DIC_kwDOQY7TbM4Czfhc',
-      'data-theme': getGiscusTheme(document.documentElement.getAttribute('data-theme')),
-      'data-reactions-enabled': '1',
-      crossorigin: 'anonymous',
-      async: true,
-      ...option,
-      ...mappingConfig
-    }
 
-    const scriptElement = createScriptElement(giscusConfig)
 
-    el.querySelector('#giscus-wrap').appendChild(scriptElement)
+</main>
+<footer class="site-foot">
+  <span>© 2026 QZP</span>
+  <a href="/archives/">归档</a>
+  <a href="/link/">友链</a>
+  <a href="/atom.xml">RSS</a>
+  <a href="https://github.com/qinghuidaqzp" target="_blank" rel="noopener">GitHub</a><a href="https://x.com/haiyou89" target="_blank" rel="noopener">X</a><a href="https://www.instagram.com/qzp117" target="_blank" rel="noopener">Instagram</a><a href="https://linux.do/u/caery" target="_blank" rel="noopener">LINUX DO</a>
+</footer>
 
-    if (isShuoshuo) {
-      window.shuoshuoComment.destroyGiscus = () => {
-        if (el.children.length) {
-          el.innerHTML = ''
-          el.classList.add('no-comment')
-        }
-      }
-    }
-  }
-
-  const changeGiscusTheme = theme => {
-    const iframe = document.querySelector('#giscus-wrap iframe')
-    if (iframe) {
-      const message = {
-        giscus: {
-          setConfig: {
-            theme: getGiscusTheme(theme)
-          }
-        }
-      }
-      iframe.contentWindow.postMessage(message, 'https://giscus.app')
-    }
-  }
-
-  btf.addGlobalFn('themeChange', changeGiscusTheme, 'giscus')
-
-  if (isShuoshuo) {
-    'Giscus' === 'Giscus'
-      ? window.shuoshuoComment = { loadComment: loadGiscus }
-      : window.loadOtherComment = loadGiscus
-    return
-  }
-
-  if ('Giscus' === 'Giscus' || !true) {
-    if (true) btf.loadComment(document.getElementById('giscus-wrap'), loadGiscus)
-    else loadGiscus()
-  } else {
-    window.loadOtherComment = loadGiscus
-  }
-})()</script></div><script>var introDiv=document.createElement('div');introDiv.id='saul-intro';introDiv.innerHTML='<div class="saul-content"><h1 class="saul-title">BETTER<br>CALL<br>ME</h1><p class="saul-subtitle">LAWYER UP • STREET • FREEDOM</p><div class="scroll-indicator">↓ SCROLL FOR CONTENT ↓</div></div><div class="saul-noise"></div>';document.body.prepend(introDiv);</script><script src="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.js"></script><div id="aplayer"></div><script src="/js/music.js"></script><script type="module" src="/js/liquid-glass.js?v=20261030-lg28"></script><script src="/js/liquid-glass-controls.js?v=20261030-lg28" defer></script><script>(()=>{const C=['#ff3333','#33ff33','#3333ff','#ffff33','#33ffff','#ff33ff'];const rm=matchMedia('(prefers-reduced-motion: reduce)');document.addEventListener('click',e=>{if(rm.matches||!(e.target instanceof Element)||e.target.closest('a.site-page,.liquid-glass-pill'))return;const f=document.createDocumentFragment();for(let i=0;i<20;i++){const b=document.createElement('div');b.style.cssText='position:fixed;left:'+e.clientX+'px;top:'+e.clientY+'px;width:5px;height:5px;border-radius:50%;pointer-events:none;z-index:999999;background:'+C[Math.random()*C.length|0];const s=5*Math.random(),n=Math.min(20*Math.random(),20*Math.random())|0,dir=Math.random()<.5?-1:1;b.animate([{transform:'translate(0,0)',opacity:1},{transform:'translate('+dir*s*n+'px,'+(-s*n)+'px)',opacity:0}],{duration:20*n+200,easing:'ease-out'}).onfinish=()=>b.remove();f.appendChild(b);}document.body.appendChild(f);},{passive:true});})();</script>
-<script src="https://cdn.jsdelivr.net/npm/pjax@0.2.8/pjax.min.js"></script><script>(() => {
-  const pjaxSelectors = ["meta[property=\"og:image\"]","meta[property=\"og:title\"]","meta[property=\"og:url\"]","meta[property=\"og:description\"]","link[rel=\"canonical\"]","head > title","#config-diff","#body-wrap","#rightside-config-hide","#rightside-config-show",".js-pjax"]
-
-  window.pjax = new Pjax({
-    elements: 'a:not([target="_blank"]):not([href="/earth/"])',
-    selectors: pjaxSelectors,
-    cacheBust: false,
-    analytics: false,
-    scrollRestoration: false
-  })
-
-  const triggerPjaxFn = (val) => {
-    if (!val) return
-    Object.values(val).forEach(fn => {
-      try {
-        fn()
-      } catch (err) {
-        console.debug('Pjax callback failed:', err)
-      }
-    })
-  }
-
-  document.addEventListener('pjax:send', () => {
-    // removeEventListener
-    btf.removeGlobalFnEvent('pjaxSendOnce')
-    btf.removeGlobalFnEvent('themeChange')
-
-    // reset readmode
-    const $bodyClassList = document.body.classList
-    if ($bodyClassList.contains('read-mode')) $bodyClassList.remove('read-mode')
-
-    triggerPjaxFn(window.globalFn.pjaxSend)
-  })
-
-  document.addEventListener('pjax:complete', () => {
-    btf.removeGlobalFnEvent('pjaxCompleteOnce')
-    document.querySelectorAll('script[data-pjax]').forEach(item => {
-      const newScript = document.createElement('script')
-      const content = item.text || item.textContent || item.innerHTML || ""
-      Array.from(item.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value))
-      newScript.appendChild(document.createTextNode(content))
-      item.parentNode.replaceChild(newScript, item)
-    })
-
-    triggerPjaxFn(window.globalFn.pjaxComplete)
-  })
-
-  document.addEventListener('pjax:error', e => {
-    if (e.request.status === 404) {
-      const usePjax = true
-      false
-        ? (usePjax ? pjax.loadUrl('/404.html') : window.location.href = '/404.html')
-        : window.location.href = e.request.responseURL
-    }
-  })
-})()</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
+<script src="/js/glass-pages.js"></script>
+</body>
+</html>
